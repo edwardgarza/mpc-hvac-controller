@@ -41,6 +41,17 @@ I am hoping this will be relatively small and constant for areas and cause be co
 
 Buildings will have windows, walls, roofs, and floors explicitly modeled. They will be modeled as simply as possible with as few objects and maybe not exactly map to reality. Once again, the hope here is that the model will be able to compensate with different parameters.
 
+<h3>Heating/Cooling Modeling</h3>
+Both electric resistance and combustion fuel have efficiencies independent of external temperature. However, heat pumps and air conditioner units have variable efficiencies.
+
+From this link
+
+https://www.nature.com/articles/s41597-019-0199-y
+
+We can estimate COP of an air source heat pump to first order as 6.08 - 0.09 $\delta t$
+
+For cooling I will use the same COP - 1.
+
 <h3>Fitting</h3>
 
 The input parameters, $\vec{p}$, will be compared with a best fit of $\vec{p} + \vec{\epsilon}$, where $\vec{\epsilon}$ is an error vector that can be augmented to improve the fit. This will be compared with the historical data to attempt to improve the modeling on an ongoing basis and will help account for imperfect models, shade, etc.
