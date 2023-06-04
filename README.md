@@ -1,5 +1,5 @@
 # mpc-hvac-controller
-The goal of this is to have a more intelligent heating/cooling scheduling that takes into account building parameters, occupant comfort, and predicted weather patterns.
+The goal of this is to have a more intelligent heating/cooling schedule that takes into account building parameters, occupant comfort, and predicted weather patterns.
 
 At a high level, a traditional thermostat works as a [pid]([url](https://en.wikipedia.org/wiki/PID_controller)) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. The goal of this is to use a [model predictive controller]([url](https://en.wikipedia.org/wiki/Model_predictive_control)) to define a better trajectory than a set schedule to further minimize energy use, cost, or even carbon intensity of the electric sources. 
 
@@ -7,7 +7,7 @@ At a high level, a traditional thermostat works as a [pid]([url](https://en.wiki
 
 1. Cost of energy does not depend on the amount used (i.e. constant marginal rates for each time)
 2. Power is not considered a factor
-3. Different sources of energy are treated the same (locally generated solar + grid usage are fungible. This is implicitly assumed in (1)
+3. Different sources of energy are treated the same (locally generated solar and grid usage are fungible. This is implicitly assumed in (1))
 
 <h2>Building Modeling</h2>
 
@@ -35,11 +35,11 @@ Initially convection will be ignored largely because I don't know how to model t
 3. Outdoor temperature
 4. Wind speed
 
-I am hoping this will be relatively small and constant for areas and cause be compensated for by other parameters.
+I am hoping this will be relatively small and constant for areas and can be compensated for by other parameters.
 
 <h3>Building Attributes</h3>
 
-Buildings will have windows, walls, roofs, and floors explicitly modeled. They will be modeled as simply as possible with as few objects and maybe not exactly map to reality. Once again, the hope here is that the model will be able to compensate with different parameters.
+Buildings will have windows, walls, roofs, and floors explicitly modeled. They will be modeled as simply as possible with as few objects and may not exactly map to reality. Once again, the hope here is that the model will be able to compensate with different parameters.
 
 <h3>Heating/Cooling Modeling</h3>
 Both electric resistance and combustion fuel have efficiencies independent of external temperature. However, heat pumps and air conditioner units have variable efficiencies.
@@ -50,7 +50,7 @@ https://www.nature.com/articles/s41597-019-0199-y
 
 We can estimate COP of an air source heat pump to first order as 6.08 - 0.09 $\delta t$
 
-For cooling I will use the same COP - 1.
+For cooling I will use the same formula for the COP - 1.
 
 <h3>Fitting</h3>
 
