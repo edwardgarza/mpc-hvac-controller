@@ -1,6 +1,4 @@
-import tkinter
-import matplotlib.pyplot
-import numpy as np
+import matplotlib.pyplot as plt
 
 from MpcController import ModelPredictiveControl
 from BuildingModel import *
@@ -12,10 +10,10 @@ if __name__ == "__main__":
     window = WindowModel(4, 0, 0.7)
     roof = RoofModel(60, 0, None, 0.85)
     floor = PierAndBeam(Studs(1.5, 5.5, 16), 30, 0, None)
-    heating_model = HeatPumpHeatingModel()
+    heating_model = ElectricResistanceHeatingModel()
     # only the walls have non-zero area
     model = BuildingModel(wall, window, roof, floor, heating_model, 100)
-    mpc = ModelPredictiveControl(model, 10, None, 0.01)
+    mpc = ModelPredictiveControl(model, 20, None, 0.01)
     inside_temperature = 40
     solar_irradiation = 0, 0, 0
     outside_weather = 0, 120, 0
@@ -37,6 +35,6 @@ if __name__ == "__main__":
 
     print(u_values)
     print(inside_values)
-    matplotlib.pyplot.plot(u_values)
-    matplotlib.pyplot.plot(inside_values)
-    matplotlib.pyplot.show()
+    plt.plot(u_values)
+    plt.plot(inside_values)
+    plt.show()

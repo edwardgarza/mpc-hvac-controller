@@ -30,7 +30,7 @@ class HeatPumpHeatingModel(HeatingModel):
         if heating:
             delta_t = (indoor_temperature + self.indoor_offset) - (outdoor_temperature - self.outdoor_offset)
         else:
-            delta_t = (indoor_temperature - self.indoor_offset) - (outdoor_temperature + self.outdoor_offset)
+            delta_t = (outdoor_temperature + self.outdoor_offset) - (indoor_temperature - self.indoor_offset)
         cop = self.hspf / 9.0 * (6.09 - 0.09 * min(0.0, delta_t))
         if heating:
             # for heating, output is cop * input
