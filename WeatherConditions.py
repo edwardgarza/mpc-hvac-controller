@@ -13,10 +13,6 @@ class SolarIrradiation:
     def horizontal_intensity(self) -> float:
         return math.fabs(math.cos(math.pi / 2 - self.altitude)) * self.intensity
 
-    def projected_intensity(self, orientation: Orientation) -> float:
-        # calculate the dot product of the sun and the orientation
-        return 0
-
 
 class WeatherConditions:
 
@@ -27,5 +23,12 @@ class WeatherConditions:
         self.ground_temperature = ground_temperature
 
     def sol_temp(self, absorptivity: float, orientation: Orientation) -> float:
-        return self.outdoor_temperature + absorptivity * self.irradiation.projected_intensity(orientation) / \
-            (5.7 + 3.8 * self.wind_speed) - 3.9
+        sol_temp = self.outdoor_temperature + absorptivity * self.projected_intensity(orientation) / \
+            (5.7 + 3.8 * self.wind_speed)
+        # sol_temp -= 3.9 * math.cos(vertical_orientation)
+        # print('sol temp', sol_temp)
+        return sol_temp
+
+    def projected_intensity(self, orientation: Orientation) -> float:
+        # calculate the dot product of the sun and the orientation
+        return 0
