@@ -3,16 +3,15 @@ from typing import List
 import numpy as np
 from scipy.optimize import minimize
 from BuildingModel import BuildingModel
-from TimeSeries import TimeSeries
-from WeatherConditions import WeatherConditions, SolarIrradiation
+from WeatherConditions import WeatherConditions
 
 
 class ModelPredictiveControl:
-    def __init__(self, model, horizon_h, Q, R):
+    def __init__(self, model, horizon_h, q, r):
         self.model = model  # type: BuildingModel
         self.horizon = horizon_h  # Prediction horizon in hours
-        self.Q = Q  # State cost matrix
-        self.R = R  # Control cost matrix (a single int for now with a single control input)
+        self.Q = q  # State cost matrix
+        self.R = r  # Control cost matrix (a single int for now with a single control input)
         self.u_prev = None  # Previous control input
         self.bounds = [-10000, 10000]
         self.step_size_h = 0.25

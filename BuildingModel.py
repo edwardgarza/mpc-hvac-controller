@@ -1,10 +1,10 @@
 from abc import ABC
-from typing import List
 
 import Orientation
 import WeatherConditions
 from ThermalTransfer import ThermalTransfer
 from HeatingModel import HeatingModel, ElectricResistanceHeatingModel
+
 
 class Studs:
 
@@ -30,7 +30,8 @@ class WallModel(ThermalTransfer):
 
     def powerflow(self, inside_temperature: float, weather_conditions: WeatherConditions):
         # guess at the color of the walls with 0.5 absorp. come back to this later
-        return (weather_conditions.sol_temp(0.5, self.orientation) - inside_temperature) * self.area_sq_m / self._rvalue()
+        return (weather_conditions.sol_temp(0.5, self.orientation) - inside_temperature) * self.area_sq_m / \
+            self._rvalue()
 
 
 class RoofModel(ThermalTransfer):
@@ -42,11 +43,11 @@ class RoofModel(ThermalTransfer):
         self.orientation = orientation
 
     def powerflow(self, inside_temperature: float, weather_conditions: WeatherConditions):
-        return ( weather_conditions.sol_temp(self.absorptivity, self.orientation) - inside_temperature) * \
+        return (weather_conditions.sol_temp(self.absorptivity, self.orientation) - inside_temperature) * \
             self.area_sq_m / self.insulation_r
 
 
-class FloorModel(ThermalTransfer):
+class FloorModel(ThermalTransfer, ABC):
     pass
 
 
@@ -57,7 +58,7 @@ class SlabModel(FloorModel):
         self.area_sq_m = area_sq_m
 
     def powerflow(self, inside_temperature: float, weather_conditions: WeatherConditions):
-        return ( weather_conditions.ground_temperature - inside_temperature) * self.area_sq_m / self.insulation_r
+        return (weather_conditions.ground_temperature - inside_temperature) * self.area_sq_m / self.insulation_r
 
 
 class PierAndBeam(WallModel, FloorModel):
@@ -77,7 +78,7 @@ class WindowModel(ThermalTransfer):
     def powerflow(self, inside_temperature: float, weather_conditions: WeatherConditions):
         # thermal conduction and solar irradiance pass through. sol_temp is irrelevant for windows (?)
         power = self.area_sq_m * ((weather_conditions.outdoor_temperature - inside_temperature) / self.insulation_r +
-                                 self.shgc * weather_conditions.projected_intensity(None))
+                                  self.shgc * weather_conditions.projected_intensity(None))
         return power
 
 
@@ -88,7 +89,7 @@ class BuildingModel(ThermalTransfer):
                  roof_model: RoofModel,
                  floor_model: FloorModel,
                  heating_model: HeatingModel,
-                 heat_capacity: float) -> object:
+                 heat_capacity: float) -> None:
         self.thermal_models = {'wall': wall_model,
                                'window': window_model,
                                'roof': roof_model,

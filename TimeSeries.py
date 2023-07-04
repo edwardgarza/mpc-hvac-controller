@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
-import numpy as np
 from scipy.interpolate import interp1d
+
 
 class ArrayConversion(ABC):
 
@@ -31,4 +31,3 @@ class TimeSeries:
     def interpolate(self, time):
         val = self.interp_func(time)
         return self.val_type.from_array(val)
-
