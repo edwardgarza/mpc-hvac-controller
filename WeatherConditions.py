@@ -1,5 +1,5 @@
 import math
-import Orientation
+from Orientation import Orientation
 from TimeSeries import ArrayConversion
 
 
@@ -43,7 +43,6 @@ class WeatherConditions(ArrayConversion):
         sol_temp = self.outdoor_temperature + absorptivity * self.projected_intensity(orientation) / \
                    (5.7 + 3.8 * self.wind_speed)
         # sol_temp -= 3.9 * math.cos(vertical_orientation)
-        # print('sol temp', sol_temp)
         return sol_temp
 
     def projected_intensity(self, orientation: Orientation) -> float:

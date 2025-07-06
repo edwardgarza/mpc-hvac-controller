@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-import WeatherConditions
+from WeatherConditions import WeatherConditions
 
 
 class ThermalTransfer(ABC):
