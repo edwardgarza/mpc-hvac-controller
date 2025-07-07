@@ -16,7 +16,7 @@ BASE_URL = "http://localhost:8000"
 def create_sample_weather_data():
     """Create sample weather data for testing"""
     weather_data = []
-    for hour in range(0, 6, 1):  # 0 to 6 hours, every 1 hour
+    for hour in range(0, 25, 1):  # 0 to 24 hours, every 1 hour
         weather_data.append({
             "hour": float(hour),
             "outdoor_temperature": 15.0 + 5.0 * (hour / 6.0),  # Varying temperature
@@ -38,7 +38,8 @@ def test_prediction_endpoint():
         "current_co2_ppm": 800.0,
         "current_temp_c": 22.0,
         "current_time_hours": 0.0,
-        "weather_data": weather_data
+        "weather_data": weather_data,
+        "horizon_hours": 6.0  # Test with 6-hour horizon
     }
     
     try:

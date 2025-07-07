@@ -359,6 +359,18 @@ class HvacController:
         self.next_prediction = np.concatenate((result.x[self.n_ventilation + 1:], self.u_prev))
         return ventilation_controls, [hvac_control], total_cost
 
+    def set_horizon(self, horizon_hours: float):
+        """
+        Set a new prediction horizon for the controller
+        
+        Args:
+            horizon_hours: New prediction horizon in hours
+        """
+        self.horizon_hours = horizon_hours
+        self.n_steps = int(horizon_hours / self.step_size_hours)
+        # Reset next_prediction when horizon changes since its dimensions depend on n_steps
+        self.next_prediction = None
+    
     def get_next_prediction(self) -> Optional[np.ndarray]:
         return self.next_prediction
     
