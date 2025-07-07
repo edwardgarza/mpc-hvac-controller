@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """
-Example demonstrating the integrated HVAC controller
+Example demonstrating the integrated HVAC controller with TimeSeries weather data
 """
+
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import numpy as np
 import matplotlib.pyplot as plt
-from co2_control.VentilationModels import (
+from src.controllers.ventilation.models import (
     RoomCO2Dynamics, WindowVentilationModel, HRVModel, 
     ERVModel, NaturalVentilationModel, CO2Source
 )
-from BuildingModel import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
-from HeatingModel import HeatPumpHeatingModel, ElectricResistanceHeatingModel
-from HvacController import HvacController
-from WeatherConditions import WeatherConditions, SolarIrradiation
-from Orientation import Orientation
+from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
+from src.models.heating import HeatPumpHeatingModel, ElectricResistanceHeatingModel
+from src.controllers.hvac import HvacController
+from src.models.weather import WeatherConditions, SolarIrradiation
+from src.utils.orientation import Orientation
+from src.utils.timeseries import TimeSeries
 
 
 def create_example_room():
@@ -43,10 +48,10 @@ def create_example_building():
     """Create a simple building model"""
     
     # Create building components
-    wall = WallModel(Studs(1.5, 3.5, 16), 13, 100, None)
+    wall = WallModel(Studs(1.5, 3.5, 16), 13, 100, Orientation())
     window = WindowModel(4, 20, 0.7)  # 20 m² of windows
-    roof = RoofModel(60, 50, None, 0.85)  # 50 m² roof
-    floor = PierAndBeam(Studs(1.5, 5.5, 16), 30, 50, None)  # 50 m² floor
+    roof = RoofModel(60, 50, Orientation(), 0.85)  # 50 m² roof
+    floor = PierAndBeam(Studs(1.5, 5.5, 16), 30, 50, Orientation())  # 50 m² floor
     
     # Create heating model
     heating_model = HeatPumpHeatingModel(hspf=9.0, output_range=(-10000, 10000))
@@ -61,13 +66,15 @@ def create_example_building():
     return building_model
 
 
+def create_weather_timeseries(forecast_hours=48):
+    """Create a TimeSeries of weather conditions for the forecast period."""
     
-def create_weather_forecast(n_steps=24):
-    """Create a simple weather forecast with n_steps + 1 entries to match simulation steps."""
-    
+    # Create time points (every 3 hours for forecast data)
+    time_points = [float(x) for x in range(0, forecast_hours + 1)]
     weather_conditions = []
-    for hour in range(n_steps + 1):
-        # Simple sinusoidal temperature variation. 
+    
+    for hour in time_points:
+        # Simple sinusoidal temperature variation
         outdoor_temp = 20 + 5 * np.sin(2 * np.pi * hour / 24)
         
         # Create weather conditions
@@ -86,39 +93,15 @@ def create_weather_forecast(n_steps=24):
         
         weather_conditions.append(weather)
     
-    return weather_conditions
-
-def create_weather_forecast_constant(n_steps=24):
-    """Create a simple weather forecast with n_steps + 1 entries to match simulation steps."""
-    
-    weather_conditions = []
-    for hour in range(n_steps + 1):
-        # Simple sinusoidal temperature variation
-        outdoor_temp = 10
-        
-        # Create weather conditions
-        solar = SolarIrradiation(
-            altitude_rad=0.5,  # Simple fixed values
-            azimuth_rad=0.0,
-            intensity_w=800 * max(0, np.sin(2 * np.pi * hour / 24))
-        )
-        
-        weather = WeatherConditions(
-            irradiation=solar,
-            wind_speed=5.0,
-            outdoor_temperature=outdoor_temp,
-            ground_temperature=12.0
-        )
-        
-        weather_conditions.append(weather)
-    
-    return weather_conditions
+    # Create TimeSeries
+    weather_series = TimeSeries(time_points, weather_conditions)
+    return weather_series
 
 
 def run_hvac_example():
-    """Run the integrated HVAC controller example with step-by-step simulation"""
+    """Run the integrated HVAC controller example with TimeSeries weather data"""
     
-    print("Setting up integrated HVAC controller example...")
+    print("Setting up integrated HVAC controller example with TimeSeries weather...")
     
     # Create models
     room_dynamics = create_example_room()
@@ -149,11 +132,14 @@ def run_hvac_example():
     print(f"Initial conditions: CO2={current_co2_ppm} ppm, Temp={current_temp_c}°C")
     print(f"Targets: CO2={controller.co2_target_ppm} ppm, Temp={controller.temp_target_c}°C")
     
+    # Create weather TimeSeries
+    weather_series = create_weather_timeseries(48)  # 48-hour forecast
+    print(f"Weather forecast: {len(weather_series)} points from 0 to {weather_series.ticks[-1]} hours")
+    
     # Simulation parameters
     simulation_hours = 24  # Run for 24 hours
     simulation_steps = int(simulation_hours / controller.step_size_hours)
-    weather_forecast = create_weather_forecast(simulation_steps * 2)
-    # weather_forecast = create_weather_forecast_constant(simulation_steps * 2)
+    
     # Storage for results
     co2_history = [current_co2_ppm]
     temp_history = [current_temp_c]
@@ -169,21 +155,27 @@ def run_hvac_example():
     print(f"\nRunning step-by-step simulation for {simulation_steps} steps ({simulation_hours} hours)...")
     
     for step in range(simulation_steps):
-        # Get weather for current step (cycle through forecast if needed)
-        weather_idx = step % len(weather_forecast)
-        current_weather = weather_forecast[weather_idx]
+        # Current simulation time
+        current_time = step * controller.step_size_hours
         
-        # Get control actions for next step
+        # Get control actions for next step using TimeSeries
         ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
-            current_co2_ppm, current_temp_c, weather_forecast[weather_idx:weather_idx + controller.n_steps]
+            current_co2_ppm, current_temp_c, weather_series, current_time
         )
         
         # Debug: Print detailed cost breakdown
         if step % 4 == 0:
-            print(f"\n=== Step {step} Cost Analysis ===")
+            print(f"\n=== Step {step} (Time: {current_time:.1f}h) Cost Analysis ===")
             print(f"Ventilation controls: {ventilation_controls}")
             print(f"HVAC control: {hvac_controls[0]:.2f} kW")
             print(f"Total cost: {total_cost:.3f}")
+            
+            # Get current weather for display
+            current_weather = weather_series.interpolate(current_time)
+            if current_weather is not None:
+                print(f"Current weather: {current_weather.outdoor_temperature:.1f}°C")
+            else:
+                print(f"Current weather: interpolated at {current_time:.1f}h")
             
             # Calculate individual costs for current state
             co2_cost = controller.co2_cost(current_co2_ppm)
@@ -295,13 +287,13 @@ def run_hvac_example():
     print(f"Average cost per step: {np.mean(cost_history):.3f}")
     
     # Plot results
-    plot_simulation_results(co2_history, temp_history, ventilation_history, hvac_history, weather_forecast, 
+    plot_simulation_results(co2_history, temp_history, ventilation_history, hvac_history, weather_series, 
                           co2_cost_history, energy_cost_history, comfort_cost_history, controller)
     
     return controller, room_dynamics, building_model
 
 
-def plot_simulation_results(co2_history, temp_history, ventilation_history, hvac_history, weather_forecast, 
+def plot_simulation_results(co2_history, temp_history, ventilation_history, hvac_history, weather_series, 
                           co2_cost_history, energy_cost_history, comfort_cost_history, controller):
     """Plot the step-by-step simulation results"""
     
@@ -323,7 +315,9 @@ def plot_simulation_results(co2_history, temp_history, ventilation_history, hvac
     # Temperature trajectory - both indoor and outdoor
     ax2.plot(time_hours, temp_history, 'g-', linewidth=2, label='Indoor Temperature')
     
-    outdoor_temps = [w.outdoor_temperature for w in weather_forecast[:len(time_hours)]]
+    # Extract outdoor temperatures from weather series
+    outdoor_temps = [weather_series.interpolate(x).outdoor_temperature for x in time_hours]
+
     ax2.plot(time_hours, outdoor_temps, 'orange', linewidth=2, label='Outdoor Temperature', alpha=0.7)
     
     ax2.axhline(y=22, color='r', linestyle='--', label='Target Temperature')

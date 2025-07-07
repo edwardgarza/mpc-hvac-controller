@@ -6,10 +6,7 @@ Ventilation Models for different types of ventilation systems
 from abc import ABC, abstractmethod, abstractproperty
 import math
 from typing import List
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from WeatherConditions import WeatherConditions
+from src.models.weather import WeatherConditions
 
 
 class CO2Source:

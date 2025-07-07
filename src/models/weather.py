@@ -1,6 +1,7 @@
 import math
-from Orientation import Orientation
-from TimeSeries import ArrayConversion
+import numpy as np
+from src.utils.orientation import Orientation
+from src.utils.timeseries import ArrayConversion
 
 
 class SolarIrradiation(ArrayConversion):

@@ -6,7 +6,7 @@ Comprehensive tests for ventilation models, focusing on CO₂ dynamics
 import unittest
 import numpy as np
 import math
-from VentilationModels import (
+from src.controllers.ventilation.models import (
     RoomCO2Dynamics, CO2Source, WindowVentilationModel, 
     HRVModel, ERVModel, NaturalVentilationModel
 )

@@ -18,10 +18,10 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 import numpy as np
 
-from Orientation import Orientation
-from WeatherConditions import WeatherConditions
-from ThermalTransfer import ThermalTransfer
-from HeatingModel import HeatingModel, ElectricResistanceHeatingModel
+from src.utils.orientation import Orientation
+from src.models.weather import WeatherConditions
+from src.models.thermal import ThermalTransfer
+from src.models.heating import HeatingModel, ElectricResistanceHeatingModel
 
 
 class Studs:
@@ -57,7 +57,7 @@ class WallModel(ThermalTransfer):
     """
     
     def __init__(self, studs: Studs, insulation_r: float, 
-                 area_sq_m: float, orientation: Orientation) -> None:
+                 area_sq_m: float, orientation: Orientation, exterior_insulation_r: float = 0.0) -> None:
         """
         Initialize wall model.
         
@@ -66,18 +66,20 @@ class WallModel(ThermalTransfer):
             insulation_r: R-value of insulation in m²·K/W
             area_sq_m: Wall area in square meters
             orientation: Wall orientation (North, South, East, West)
+            exterior_insulation_r: R-value of exterior insulation in m²·K/W (purely additive)
         """
         self.studs = studs
         self.insulation_r = insulation_r
         self.area_sq_m = area_sq_m
         self.orientation = orientation
+        self.exterior_insulation_r = exterior_insulation_r
 
     def _rvalue(self) -> float:
         """
         Calculate effective R-value of the wall assembly.
         
         Uses weighted average of stud and insulation R-values based on
-        the proportion of each in the wall.
+        the proportion of each in the wall, plus any exterior insulation.
         
         Returns:
             Effective R-value of the wall assembly in m²·K/W
@@ -85,10 +87,10 @@ class WallModel(ThermalTransfer):
         # Wood thermal conductivity is approximately 0.12 W/m·K
         # R-value = thickness / thermal_conductivity
         r_value_studs = self.studs.depth / 0.12  # m²·K/W
-        
         # Weighted sum of the R values based on stud spacing
-        return (self.studs.width * r_value_studs + 
-                (self.studs.spacing - self.studs.width) * self.insulation_r) / self.studs.spacing
+        base_r = (self.studs.width * r_value_studs + 
+                  (self.studs.spacing - self.studs.width) * self.insulation_r) / self.studs.spacing
+        return base_r + self.exterior_insulation_r
 
     def powerflow(self, inside_temperature: float, 
                   weather_conditions: WeatherConditions) -> float:
@@ -193,7 +195,9 @@ class PierAndBeam(WallModel, FloorModel):
     This is essentially a wall model but with no solar irradiation effects.
     Models heat transfer through the floor to the outdoor air below.
     """
-    
+    def __init__(self, studs: Studs, insulation_r: float, area_sq_m: float, orientation: Orientation, exterior_insulation_r: float = 0.0) -> None:
+        super().__init__(studs, insulation_r, area_sq_m, orientation, exterior_insulation_r)
+
     def powerflow(self, inside_temperature: float, 
                   weather_conditions: WeatherConditions) -> float:
         """

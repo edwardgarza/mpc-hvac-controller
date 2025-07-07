@@ -3,13 +3,18 @@
 Integrated HVAC Controller combining heating/cooling and ventilation control
 """
 
-from typing import List, Tuple, Dict, Any
 import numpy as np
-from scipy.optimize import minimize
-from co2_control.VentilationModels import RoomCO2Dynamics, BaseVentilationModel
-from WeatherConditions import WeatherConditions
-from HeatingModel import HeatingModel
-from BuildingModel import BuildingModel
+import scipy.optimize as optimize
+from typing import List, Tuple, Optional, Dict, Any
+import time
+from concurrent.futures import ThreadPoolExecutor
+import threading
+
+from src.models.weather import WeatherConditions
+from src.models.heating import HeatingModel
+from src.models.building import BuildingModel
+from src.controllers.ventilation.models import RoomCO2Dynamics, BaseVentilationModel
+from src.utils.timeseries import TimeSeries
 
 
 class HvacController:
@@ -82,7 +87,8 @@ class HvacController:
                            initial_co2_ppm: float,
                            initial_temp_c: float,
                            control_sequences: List[List[List[float]]],
-                           weather_conditions: List[WeatherConditions]) -> Tuple[List[float], List[float]]:
+                           weather_series_hours: TimeSeries,
+                           start_time_hours: float = 0.0) -> Tuple[List[float], List[float]]:
         """
         Predict both CO2 and temperature trajectories
         
@@ -90,7 +96,8 @@ class HvacController:
             initial_co2_ppm: Starting CO2 concentration
             initial_temp_c: Starting temperature inside
             control_sequences: Control sequences [ventilation_controls, hvac_controls]
-            weather_conditions: Weather conditions for each time step
+            weather_series_hours: TimeSeries of weather conditions
+            start_time_hours: Starting time for prediction (hours from weather series start)
             
         Returns:
             Tuple of (co2_trajectory, temp_trajectory)
@@ -108,14 +115,17 @@ class HvacController:
             # Extract control inputs for this time step
             ventilation_inputs = [ventilation_controls[j][i] for j in range(self.n_ventilation)]
             hvac_input = hvac_controls[0][i]  # hvac_controls is a list of lists
+            
+            # Get weather at current prediction time
+            current_time = start_time_hours + i * self.step_size_hours
+            weather = weather_series_hours.interpolate(current_time)
+            
             if self.use_linear_trajectories:
                 current_co2 = self.room_dynamics.co2_change_per_s(current_co2, ventilation_inputs) * self.step_size_seconds + current_co2
             else:
                 current_co2 = self.room_dynamics.co2_levels_in_t(current_co2, ventilation_inputs, self.step_size_seconds)
             
             # Predict temperature change using building model
-            weather = weather_conditions[i]
-            
             # Calculate ventilation heat load (additional to building model)
             ventilation_heat_load = 0.0
             for j, (vent_model, vent_input) in enumerate(
@@ -139,7 +149,7 @@ class HvacController:
                 )
 
                 temp_change = temp_change_per_s * self.step_size_seconds
-                # print(f"old temp: {current_temp} new temp: {current_temp + temp_change} Temp change: {temp_change} per s, {temp_change * self.step_size_seconds} in {self.step_size_hours} hours")
+                # print(f"old temp: {current_temp} new temp: {current_temp + temp_change} Temp change: {temp_change} per s, {temp_change * self.step_size_hours} in {self.step_size_hours} hours")
                 current_temp += temp_change
             else:
                 raise ValueError("Non-Linear trajectories are not supported")
@@ -210,7 +220,8 @@ class HvacController:
     def cost_function(self, control_vector: np.ndarray,
                      current_co2_ppm: float,
                      current_temp_c: float,
-                     weather_conditions: List[WeatherConditions]) -> float:
+                     weather_series_hours: TimeSeries,
+                     start_time_hours: float = 0.0) -> float:
         """
         Calculate total cost for integrated HVAC control
         
@@ -241,7 +252,7 @@ class HvacController:
         co2_trajectory, temp_trajectory = self.predict_trajectories(
             current_co2_ppm, current_temp_c, 
             [ventilation_sequences, [hvac_sequence]], 
-            weather_conditions
+            weather_series_hours, start_time_hours
         )
         
         total_cost = 0.0
@@ -256,7 +267,9 @@ class HvacController:
             # Energy cost
             ventilation_inputs = [ventilation_sequences[j][i] for j in range(self.n_ventilation)]
             hvac_input = hvac_sequence[i]
-            outdoor_temp = weather_conditions[i].outdoor_temperature
+            current_time = start_time_hours + i * self.step_size_hours
+            weather = weather_series_hours.interpolate(current_time)
+            outdoor_temp = weather.outdoor_temperature
             
             energy_cost = self.energy_cost(
                 ventilation_inputs, hvac_input,
@@ -280,7 +293,8 @@ class HvacController:
     def optimize_controls(self,
                          current_co2_ppm: float,
                          current_temp_c: float,
-                         weather_conditions: List[WeatherConditions]) -> Tuple[List[float], List[float], float]:
+                         weather_series_hours: TimeSeries,
+                         start_time_hours: float = 0.0) -> Tuple[List[float], List[float], float]:
         """
         Optimize both ventilation and HVAC controls
         
@@ -292,17 +306,11 @@ class HvacController:
         Returns:
             Tuple of (ventilation_controls, hvac_controls, total_cost)
         """
-        # Ensure enough weather data
-        if len(weather_conditions) < self.n_steps:
-            last_weather = weather_conditions[-1] if weather_conditions else None
-            while len(weather_conditions) < self.n_steps:
-                if last_weather is not None:
-                    weather_conditions.append(last_weather)
-                else:
-                    from WeatherConditions import SolarIrradiation
-                    default_solar = SolarIrradiation(0.0, 0.0, 0.0)
-                    default_weather = WeatherConditions(default_solar, 0.0, 20.0, 15.0)
-                    weather_conditions.append(default_weather)
+        # Ensure weather series has enough data for the horizon
+        max_time_needed = start_time_hours + self.horizon_hours
+        if max_time_needed > weather_series_hours.ticks[-1]:
+            print(f"Warning: Weather forecast only goes to {weather_series_hours.ticks[-1]} hours, but need {max_time_needed} hours")
+            # Use the last available weather for extrapolation
         
         # Initial guess
         if self.u_prev is not None:
@@ -321,10 +329,10 @@ class HvacController:
         bounds.extend([(self.building_model.heating_model.output_range[0], self.building_model.heating_model.output_range[1]) for _ in range(self.n_steps)])
         
         # Optimize
-        result = minimize(
+        result = optimize.minimize(
             self.cost_function,
             u0,
-            args=(current_co2_ppm, current_temp_c, weather_conditions),
+            args=(current_co2_ppm, current_temp_c, weather_series_hours, start_time_hours),
             method=self.optimization_method,
             bounds=bounds,
             options={'maxiter': self.max_iterations}
@@ -350,11 +358,15 @@ class HvacController:
         # remove the current time step and append something random to the current optimized control for the next initial guess for the optimization
         self.next_prediction = np.concatenate((result.x[self.n_ventilation + 1:], self.u_prev))
         return ventilation_controls, [hvac_control], total_cost
+
+    def get_next_prediction(self) -> Optional[np.ndarray]:
+        return self.next_prediction
     
     def get_control_info(self,
                         current_co2_ppm: float,
                         current_temp_c: float,
-                        weather_conditions: List[WeatherConditions]) -> Tuple[List[float], List[float], List[float], List[float], float, Dict[str, Any]]:
+                        weather_series_hours: TimeSeries,
+                        start_time_hours: float = 0.0) -> Tuple[List[float], List[float], List[float], List[float], float, Dict[str, Any]]:
         """
         Get detailed control information including predicted trajectories
         
@@ -367,7 +379,7 @@ class HvacController:
             Tuple of (ventilation_controls, hvac_controls, co2_trajectory, temp_trajectory, total_cost, additional_info)
         """
         ventilation_controls, hvac_controls, total_cost = self.optimize_controls(
-            current_co2_ppm, current_temp_c, weather_conditions
+            current_co2_ppm, current_temp_c, weather_series_hours, start_time_hours
         )
         
         # Predict full trajectories
@@ -377,7 +389,7 @@ class HvacController:
         co2_trajectory, temp_trajectory = self.predict_trajectories(
             current_co2_ppm, current_temp_c,
             [ventilation_sequences, [hvac_sequence]],
-            weather_conditions
+            weather_series_hours, start_time_hours
         )
         
         additional_info = {

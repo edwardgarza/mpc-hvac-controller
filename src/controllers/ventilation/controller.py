@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Integrated Model Predictive Controller for ventilation systems
-Supports multiple ventilation types (windows, HRV, ERV) with natural ventilation
+Ventilation MPC Controller for CO2 control
 """
 
-from typing import List, Tuple, Dict, Any
 import numpy as np
-from scipy.optimize import minimize
-from .VentilationModels import RoomCO2Dynamics, BaseVentilationModel, CO2Source
-from WeatherConditions import WeatherConditions
+import scipy.optimize as optimize
+from typing import List, Tuple, Optional, Dict, Any
+import time
+
+from src.models.weather import WeatherConditions
+from src.controllers.ventilation.models import RoomCO2Dynamics, BaseVentilationModel, CO2Source
 
 
 class IntegratedVentilationMpcController:
@@ -313,7 +314,7 @@ class IntegratedVentilationMpcController:
                 if last_weather is not None:
                     weather_conditions.append(last_weather)
                 else:
-                    from WeatherConditions import SolarIrradiation
+                    from src.models.weather import SolarIrradiation
                     default_solar = SolarIrradiation(0.0, 0.0, 0.0)
                     default_weather = WeatherConditions(default_solar, 0.0, 20.0, 15.0)
                     weather_conditions.append(default_weather)
@@ -341,7 +342,7 @@ class IntegratedVentilationMpcController:
         
         # Optimize with different methods
         if self.optimization_method == "SLSQP":
-            result = minimize(
+            result = optimize.minimize(
                 self.cost_function,
                 u0,
                 args=args,
@@ -351,7 +352,7 @@ class IntegratedVentilationMpcController:
                 options={'maxiter': self.max_iterations}
             )
         elif self.optimization_method == "trust-constr":
-            result = minimize(
+            result = optimize.minimize(
                 self.cost_function,
                 u0,
                 args=args,
@@ -361,7 +362,7 @@ class IntegratedVentilationMpcController:
                 options={'maxiter': self.max_iterations}
             )
         else:  # L-BFGS-B or other methods
-            result = minimize(
+            result = optimize.minimize(
                 self.cost_function,
                 u0,
                 args=args,
@@ -411,7 +412,7 @@ class IntegratedVentilationMpcController:
                 if last_weather is not None:
                     weather_conditions.append(last_weather)
                 else:
-                    from WeatherConditions import SolarIrradiation
+                    from src.models.weather import SolarIrradiation
                     default_solar = SolarIrradiation(0.0, 0.0, 0.0)
                     default_weather = WeatherConditions(default_solar, 0.0, 20.0, 15.0)
                     weather_conditions.append(default_weather)
@@ -429,7 +430,7 @@ class IntegratedVentilationMpcController:
             bounds.extend([(0.0, max_rate) for _ in range(self.n_steps)])
         
         # Optimize to get the full optimal sequence
-        result = minimize(
+        result = optimize.minimize(
             self.cost_function,
             u0,
             args=(current_co2_ppm, weather_conditions, indoor_temperature_c),

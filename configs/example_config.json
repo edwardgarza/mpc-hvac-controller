@@ -1,0 +1,12 @@
+{
+  "horizon_hours": 24.0,
+  "co2_weight": 1.0,
+  "energy_weight": 1.0,
+  "comfort_weight": 1.0,
+  "co2_target_ppm": 800.0,
+  "temp_target_c": 22.0,
+  "step_size_hours": 0.25,
+  "optimization_method": "SLSQP",
+  "max_iterations": 500,
+  "electricity_cost_per_kwh": 0.15
+}

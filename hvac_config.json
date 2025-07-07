@@ -1,0 +1,128 @@
+{
+  "controller": {
+    "horizon_hours": 24.0,
+    "co2_weight": 1.0,
+    "energy_weight": 1.0,
+    "comfort_weight": 1.0,
+    "co2_target_ppm": 800.0,
+    "temp_target_c": 22.0,
+    "step_size_hours": 0.25,
+    "optimization_method": "SLSQP",
+    "max_iterations": 500,
+    "electricity_cost_per_kwh": 0.15
+  },
+  "building": {
+    "heat_capacity": 1000000.0,
+    "room": {
+      "volume_m3": 100.0,
+      "outdoor_co2_ppm": 400.0,
+      "co2_sources": [
+        {
+          "type": "occupant",
+          "co2_production_rate_m3_per_hour": 0.01,
+          "count": 1
+        }
+      ]
+    },
+    "walls": [
+      {
+        "insulation_r": 13.0,
+        "area_sq_m": 100.0,
+        "orientation": 0.0,
+        "studs": {
+          "width": 0.038,
+          "depth": 0.089,
+          "spacing": 0.406
+        },
+        "exterior_insulation_r": 0.0
+      },
+      {
+        "insulation_r": 13.0,
+        "area_sq_m": 100.0,
+        "orientation": 0.0,
+        "studs": {
+          "width": 0.038,
+          "depth": 0.089,
+          "spacing": 0.406
+        },
+        "exterior_insulation_r": 0.0
+      },
+      {
+        "insulation_r": 13.0,
+        "area_sq_m": 50.0,
+        "orientation": 0.0,
+        "studs": {
+          "width": 0.038,
+          "depth": 0.089,
+          "spacing": 0.406
+        },
+        "exterior_insulation_r": 0.0
+      },
+      {
+        "insulation_r": 13.0,
+        "area_sq_m": 50.0,
+        "orientation": 0.0,
+        "studs": {
+          "width": 0.038,
+          "depth": 0.089,
+          "spacing": 0.406
+        },
+        "exterior_insulation_r": 0.0
+      }
+    ],
+    "windows": [
+      {
+        "insulation_r": 4.0,
+        "area_sq_m": 20.0,
+        "solar_heat_gain_coefficient": 0.7,
+        "orientation": 0.0
+      }
+    ],
+    "roof": {
+      "insulation_r": 60.0,
+      "area_sq_m": 50.0,
+      "absorptivity": 0.85,
+      "orientation": 0.0
+    },
+    "floor": {
+      "type": "pier_and_beam",
+      "insulation_r": 30.0,
+      "area_sq_m": 50.0,
+      "studs": {
+        "width": 0.038,
+        "depth": 0.089,
+        "spacing": 0.406
+      },
+      "exterior_insulation_r": 0.0
+    },
+    "heating_system": {
+      "type": "heat_pump",
+      "output_range_min": -10000.0,
+      "output_range_max": 10000.0,
+      "hspf": 9.0,
+      "outdoor_offset": 3.0,
+      "indoor_offset": 5.0
+    },
+    "ventilation": {
+      "window_ventilations": [
+        {
+          "max_airflow_m3_per_hour": 300.0,
+          "fan_power_w_m3_per_hour": 0.0
+        }
+      ],
+      "ervs": [
+        {
+          "max_airflow_m3_per_hour": 200.0,
+          "heat_recovery_efficiency": 0.7,
+          "fan_power_w_m3_per_hour": 0.3
+        }
+      ],
+      "natural_ventilations": [
+        {
+          "infiltration_rate_ach": 0.2,
+          "indoor_volume_m3": 100.0
+        }
+      ]
+    }
+  }
+}
