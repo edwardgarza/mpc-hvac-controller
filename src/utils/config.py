@@ -173,9 +173,10 @@ class ServerConfig(BaseModel):
 
 
 class FullConfig(BaseModel):
-    """Complete configuration including building and controller"""
+    """Complete configuration including building, controller, and server"""
     controller: ControllerConfig = Field(default_factory=ControllerConfig, description="Controller configuration")
     building: BuildingConfig = Field(default_factory=BuildingConfig, description="Building configuration")
+    server: ServerConfig = Field(default_factory=ServerConfig, description="Server configuration")
 
 
 class Config:
@@ -234,7 +235,8 @@ class Config:
         
         return FullConfig(
             controller=ControllerConfig(),
-            building=default_building
+            building=default_building,
+            server=ServerConfig()
         )
     
     def load_config(self, config_file: Optional[str] = None) -> FullConfig:

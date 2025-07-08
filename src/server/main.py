@@ -7,9 +7,11 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import numpy as np
@@ -28,8 +30,11 @@ import argparse
 import uvicorn
 
 # Import our modules
-from src.utils.config import ControllerConfig, BuildingConfig, VentilationConfig, CO2SourceConfig, get_controller_config, get_building_config
-from src.utils.factory import create_building_model
+from src.utils.config import (
+    ControllerConfig, BuildingConfig, VentilationConfig, CO2SourceConfig, 
+    get_controller_config, get_building_config, Config, FullConfig, config
+)
+from src.utils.factory import create_building_model, create_co2_sources
 from src.controllers.hvac import HvacController
 from src.controllers.ventilation.models import (
     WindowVentilationModel, ERVModel, NaturalVentilationModel, CO2Source,
@@ -91,6 +96,8 @@ class PredictionResponse(BaseModel):
     time_horizon_hours: List[float]
     weather_forecast: List[dict]
     has_prediction: bool
+    co2_trajectory: Optional[List[float]] = Field(default=None, description="Predicted CO2 levels over time horizon")
+    temperature_trajectory: Optional[List[float]] = Field(default=None, description="Predicted temperature levels over time horizon")
 
 
 class ModelInfo(BaseModel):
@@ -105,6 +112,7 @@ class ModelInfo(BaseModel):
 controller: Optional[HvacController] = None
 building_model = None
 room_dynamics = None
+last_weather_series: Optional[TimeSeries] = None # Added global variable for weather series
 
 
 def create_ventilation_models(building_config):
@@ -140,12 +148,6 @@ def create_ventilation_models(building_config):
     return controllable_ventilations, natural_ventilations
 
 
-def create_co2_sources():
-    """Create default CO2 sources"""
-    occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.02)  # 2 people
-    return [occupant_source]
-
-
 def initialize_controller():
     """Initialize the HVAC controller with current configuration"""
     global controller, building_model, room_dynamics
@@ -161,7 +163,6 @@ def initialize_controller():
     controllable_ventilations, natural_ventilations = create_ventilation_models(building_config)
     
     # Create CO2 sources from config
-    from utils.factory import create_co2_sources
     co2_sources = create_co2_sources(building_config.room.co2_sources)
     
     # Create room dynamics
@@ -223,6 +224,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -240,124 +244,42 @@ async def startup_event():
 
 
 @app.get("/")
-async def root():
+async def root(request: Request):
     """Root endpoint with HTML dashboard"""
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>HVAC Controller API</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .container { max-width: 800px; margin: 0 auto; }
-            .endpoint { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
-            .form-group { margin: 10px 0; }
-            label { display: inline-block; width: 150px; }
-            input, textarea { width: 200px; padding: 5px; }
-            button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; }
-            button:hover { background: #0056b3; }
-            .result { background: #e9ecef; padding: 10px; margin: 10px 0; border-radius: 3px; white-space: pre-wrap; }
-            .plot-container { text-align: center; margin: 20px 0; }
-            img { max-width: 100%; height: auto; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>HVAC Controller API</h1>
-            
-
-            
-            <div class="endpoint">
-                <h3>Test Plot Prediction</h3>
-                <button onclick="testPlot()" id="plot-button">Generate Plot</button>
-                <div id="plot-result" class="plot-container"></div>
-            </div>
-            
-            <div class="endpoint">
-                <h3>API Endpoints</h3>
-                <ul>
-                    <li><strong>GET /config</strong> - Get current configuration</li>
-                    <li><strong>POST /control</strong> - Get optimal control actions</li>
-                    <li><strong>POST /predict</strong> - Get next prediction</li>
-                    <li><strong>GET /plot-prediction</strong> - Generate prediction plot</li>
-                    <li><strong>GET /model-info</strong> - Get model information</li>
-                </ul>
-            </div>
-        </div>
-        
-        <script>
-            function createWeatherData() {
-                const weatherData = [];
-                for (let hour = 0; hour <= 24; hour += 2) {
-                    weatherData.push({
-                        hour: hour,
-                        outdoor_temperature: 15.0 + 5.0 * (hour / 24.0),
-                        wind_speed: 5.0,
-                        solar_altitude_rad: 0.5,
-                        solar_azimuth_rad: 0.0,
-                        solar_intensity_w: 800.0,
-                        ground_temperature: 12.0
-                    });
-                }
-                return weatherData;
-            }
-            
-            async function testPlot() {
-                const plotButton = document.getElementById('plot-button');
-                const plotResult = document.getElementById('plot-result');
-                
-                // Show loading state
-                plotButton.disabled = true;
-                plotButton.textContent = 'Generating...';
-                plotResult.textContent = 'Loading...';
-                
-                try {
-                    // Generate plot directly (it will run prediction if needed)
-                    const plotResponse = await fetch('/plot-prediction', {
-                        method: 'GET'
-                    });
-                    
-                    if (!plotResponse.ok) {
-                        throw new Error(`Plot generation failed: ${plotResponse.status}`);
-                    }
-                    
-                    const plotResultData = await plotResponse.json();
-                    console.log('Plot response:', plotResultData);
-                    if (plotResultData.plot_data) {
-                        const img = document.createElement('img');
-                        img.src = 'data:image/png;base64,' + plotResultData.plot_data;
-                        img.alt = 'Prediction Plot';
-                        plotResult.innerHTML = '';
-                        plotResult.appendChild(img);
-                        console.log('Plot image created and added to page');
-                    } else {
-                        plotResult.textContent = 'No plot data received';
-                        console.log('No plot data in response');
-                    }
-                } catch (error) {
-                    plotResult.textContent = 'Error: ' + error.message;
-                } finally {
-                    // Reset button state
-                    plotButton.disabled = false;
-                    plotButton.textContent = 'Generate Plot';
-                }
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+    return Jinja2Templates(directory="templates").TemplateResponse(
+        "index.html", {"request": request}
+    )
 
 @app.get("/config")
 async def get_config():
     """Get current configuration"""
-    controller_config = get_controller_config()
-    building_config = get_building_config()
+    if controller is None:
+        raise HTTPException(status_code=500, detail="Controller not initialized")
     
-    return {
-        "controller": controller_config.model_dump(),
-        "building": building_config.model_dump()
-    }
+    try:
+        # Always reload from file to get the latest changes
+        config.load_config("hvac_config.json")
+        return config.full_config.model_dump()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
+
+@app.post("/config")
+async def save_config_endpoint(config_data: dict):
+    """Save configuration"""
+    try:
+        # Validate the config data
+        full_config = FullConfig(**config_data)
+        
+        # Save to file
+        config.save_to_file(full_config, "hvac_config.json")
+        
+        # Reinitialize controller with new config
+        global controller
+        initialize_controller()
+        
+        return {"message": "Configuration saved and controller reinitialized successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid configuration: {str(e)}")
 
 
 @app.post("/control")
@@ -409,7 +331,9 @@ async def get_prediction(request: PredictionRequest):
             controller.set_horizon(request.horizon_hours)
         
         # Store weather series for plotting
-        controller.last_weather_series = weather_series
+        # Note: We'll store this in a global variable since HvacController doesn't have this attribute
+        global last_weather_series
+        last_weather_series = weather_series
         
         # Run optimization in a thread pool to avoid blocking
         loop = asyncio.get_event_loop()
@@ -426,6 +350,34 @@ async def get_prediction(request: PredictionRequest):
         
         # Get next prediction array
         next_prediction = controller.get_next_prediction()
+        
+        # Get predicted trajectories for CO2 and temperature
+        co2_trajectory = None
+        temperature_trajectory = None
+        
+        if next_prediction is not None:
+            # Extract control sequences from the prediction
+            n_ventilation_vars = controller.n_ventilation * controller.n_steps
+            ventilation_vector = next_prediction[:n_ventilation_vars]
+            hvac_vector = next_prediction[n_ventilation_vars:]
+            
+            # Reshape into sequences
+            ventilation_sequences = []
+            for i in range(controller.n_ventilation):
+                start_idx = i * controller.n_steps
+                end_idx = (i + 1) * controller.n_steps
+                ventilation_sequences.append(ventilation_vector[start_idx:end_idx].tolist())
+            
+            hvac_sequence = hvac_vector.tolist()
+            
+            # Predict trajectories
+            co2_trajectory, temperature_trajectory = controller.predict_trajectories(
+                request.current_co2_ppm,
+                request.current_temp_c,
+                [ventilation_sequences, [hvac_sequence]],
+                weather_series,
+                request.current_time_hours
+            )
         
         # Create time horizon
         time_horizon = [request.current_time_hours + i * controller.step_size_hours 
@@ -456,7 +408,9 @@ async def get_prediction(request: PredictionRequest):
             next_prediction=next_prediction.tolist() if next_prediction is not None else None,
             time_horizon_hours=time_horizon,
             weather_forecast=weather_forecast,
-            has_prediction=next_prediction is not None
+            has_prediction=next_prediction is not None,
+            co2_trajectory=co2_trajectory,
+            temperature_trajectory=temperature_trajectory
         )
         
     except Exception as e:
@@ -467,85 +421,134 @@ async def get_prediction(request: PredictionRequest):
 async def plot_prediction():
     """Generate a plot of the last prediction from the controller"""
     if controller is None:
+        print("[DEBUG] Controller is None!")
         raise HTTPException(status_code=500, detail="Controller not initialized")
     
     try:
         # Get the last prediction from the controller
         next_prediction = controller.get_next_prediction()
-        
+        print(f"[DEBUG] next_prediction type: {type(next_prediction)}")
+        if next_prediction is not None:
+            print(f"[DEBUG] next_prediction shape/len: {getattr(next_prediction, 'shape', None) or len(next_prediction)}")
+        else:
+            print("[DEBUG] next_prediction is None!")
         if next_prediction is None:
-            # No prediction available, run a default one
-            from models.weather import WeatherConditions, SolarIrradiation
-            
-            # Create default weather data
-            weather_data = []
-            for hour in range(0, 25, 6):
-                solar = SolarIrradiation(altitude_rad=0.5, azimuth_rad=0.0, intensity_w=800.0)
-                weather = WeatherConditions(
-                    irradiation=solar,
-                    wind_speed=5.0,
-                    outdoor_temperature=15.0 + 5.0 * (hour / 24.0),
-                    ground_temperature=12.0
-                )
-                weather_data.append(weather)
-            
-            weather_series = TimeSeries([0, 6, 12, 18, 24], weather_data)
-            controller.last_weather_series = weather_series
-            
-            # Run optimization with default parameters
-            ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
+            raise HTTPException(status_code=500, detail="No prediction available")
+        
+        # Create time horizons
+        print(f"[DEBUG] controller.step_size_hours: {controller.step_size_hours}, controller.n_steps: {controller.n_steps}")
+        time_horizon_traj = [i * controller.step_size_hours for i in range(controller.n_steps + 1)]  # 25 points
+        time_horizon_ctrl = [i * controller.step_size_hours for i in range(controller.n_steps)]      # 24 points
+
+        # Get trajectory predictions if we have a prediction
+        co2_trajectory = None
+        temperature_trajectory = None
+        
+        # Extract control sequences from the prediction
+        n_ventilation_vars = controller.n_ventilation * controller.n_steps
+        print(f"[DEBUG] n_ventilation: {controller.n_ventilation}, n_steps: {controller.n_steps}, n_ventilation_vars: {n_ventilation_vars}")
+        ventilation_vector = next_prediction[:n_ventilation_vars]
+        hvac_vector = next_prediction[n_ventilation_vars:]
+        print(f"[DEBUG] ventilation_vector len: {len(ventilation_vector)}, hvac_vector len: {len(hvac_vector)}")
+        
+        # Reshape into sequences
+        ventilation_sequences = []
+        for i in range(controller.n_ventilation):
+            start_idx = i * controller.n_steps
+            end_idx = (i + 1) * controller.n_steps
+            ventilation_sequences.append(ventilation_vector[start_idx:end_idx].tolist())
+        print(f"[DEBUG] ventilation_sequences lens: {[len(seq) for seq in ventilation_sequences]}")
+        hvac_sequence = hvac_vector.tolist()
+        print(f"[DEBUG] hvac_sequence len: {len(hvac_sequence)}")
+        
+        # Predict trajectories
+        print(f"[DEBUG] last_weather_series is None? {last_weather_series is None}")
+        if last_weather_series is not None:
+            co2_trajectory, temperature_trajectory = controller.predict_trajectories(
                 800.0,  # default CO2
                 22.0,   # default temp
-                weather_series,
+                [ventilation_sequences, [hvac_sequence]],
+                last_weather_series,
                 0.0     # default time
             )
-            
-            next_prediction = controller.get_next_prediction()
+            print(f"[DEBUG] co2_trajectory len: {len(co2_trajectory) if co2_trajectory is not None else None}")
+            print(f"[DEBUG] temperature_trajectory len: {len(temperature_trajectory) if temperature_trajectory is not None else None}")
+        else:
+            print("[DEBUG] last_weather_series is None, cannot predict trajectories!")
         
-        # Create time horizon
-        time_horizon = [i * controller.step_size_hours for i in range(controller.n_steps)]
+        # Create plot with 2 subplots
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
         
-        # Create plot
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+        # Plot 1: Temperature and HVAC Controls
+        # Indoor temperature trajectory
+        if temperature_trajectory is not None:
+            ax1.plot(time_horizon_traj, temperature_trajectory, 'orange', linewidth=2, label='Indoor Temperature')
+            ax1.axhline(y=22, color='r', linestyle='--', alpha=0.7, label='Temperature Target (22°C)')
         
-        # Plot 1: Weather forecast (if we have weather data)
-        if hasattr(controller, 'last_weather_series') and controller.last_weather_series is not None:
+        # Outdoor temperature (if we have weather data)
+        if last_weather_series is not None:
             weather_times = []
             weather_temps = []
-            for t in time_horizon:
-                if t <= controller.last_weather_series.ticks[-1]:
-                    weather = controller.last_weather_series.interpolate(t)
+            for t in time_horizon_traj:
+                if t <= last_weather_series.ticks[-1]:
+                    weather = last_weather_series.interpolate(t)
                     weather_times.append(t)
                     weather_temps.append(weather.outdoor_temperature)
             
             if weather_times:
                 ax1.plot(weather_times, weather_temps, 'b-', linewidth=2, label='Outdoor Temperature')
-                ax1.set_ylabel('Temperature (°C)')
-                ax1.set_title('Weather Forecast')
-                ax1.grid(True, alpha=0.3)
-                ax1.legend()
         
-        # Plot 2: Next prediction
-        # Split prediction into ventilation and HVAC controls
-        n_ventilation_vars = controller.n_ventilation * controller.n_steps
-        ventilation_pred = next_prediction[:n_ventilation_vars]
-        hvac_pred = next_prediction[n_ventilation_vars:]
+        ax1.set_ylabel('Temperature (°C)', color='black')
+        ax1.set_xlabel('Time (hours)')
+        ax1.set_title('Temperature and HVAC Control')
+        ax1.grid(True, alpha=0.3)
+        ax1.legend(loc='upper left')
         
-        # Reshape ventilation predictions
-        for i in range(controller.n_ventilation):
-            start_idx = i * controller.n_steps
-            end_idx = (i + 1) * controller.n_steps
-            vent_sequence = ventilation_pred[start_idx:end_idx]
-            ax2.plot(time_horizon, vent_sequence, 
-                    label=f'Ventilation {i+1}', linewidth=2)
+        # Secondary y-axis for HVAC control
+        if next_prediction is not None:
+            ax1_hvac = ax1.twinx()
+            n_ventilation_vars = controller.n_ventilation * controller.n_steps
+            hvac_pred = next_prediction[n_ventilation_vars:]
+            ax1_hvac.plot(time_horizon_ctrl, hvac_pred, 'r-', linewidth=2, label='HVAC Control')
+            ax1_hvac.set_ylabel('HVAC Control Value (Watts)', color='red')
+            ax1_hvac.tick_params(axis='y', labelcolor='red')
+            ax1_hvac.legend(loc='upper right')
         
-        # Plot HVAC control
-        ax2.plot(time_horizon, hvac_pred, 'r-', linewidth=2, label='HVAC Control')
-        ax2.set_ylabel('Control Value')
+        # Plot 2: CO2 and Ventilation Controls
+        # CO2 trajectory
+        if co2_trajectory is not None:
+            ax2.plot(time_horizon_traj, co2_trajectory, 'g-', linewidth=2, label='Indoor CO₂')
+            ax2.axhline(y=800, color='r', linestyle='--', alpha=0.7, label='CO₂ Target (800 ppm)')
+        
+        ax2.set_ylabel('CO₂ (ppm)', color='green')
         ax2.set_xlabel('Time (hours)')
-        ax2.set_title('Predicted Controls')
+        ax2.set_title('CO₂ Levels and Ventilation Control')
         ax2.grid(True, alpha=0.3)
-        ax2.legend()
+        ax2.legend(loc='upper left')
+        ax2.tick_params(axis='y', labelcolor='green')
+        
+        # Secondary y-axis for ventilation controls
+        if next_prediction is not None:
+            ax2_vent = ax2.twinx()
+            n_ventilation_vars = controller.n_ventilation * controller.n_steps
+            ventilation_pred = next_prediction[:n_ventilation_vars]
+            
+            # Reshape ventilation predictions
+            for i in range(controller.n_ventilation):
+                start_idx = i * controller.n_steps
+                end_idx = (i + 1) * controller.n_steps
+                vent_sequence = ventilation_pred[start_idx:end_idx]
+                
+                # Get the actual ventilation model name
+                vent_model = room_dynamics.controllable_ventilations[i]
+                vent_name = type(vent_model).__name__
+                
+                ax2_vent.plot(time_horizon_ctrl, vent_sequence, 
+                        label=f'{vent_name}', linewidth=2, linestyle='--')
+            
+            ax2_vent.set_ylabel('Ventilation Control Value (m^3/hr)', color='purple')
+            ax2_vent.tick_params(axis='y', labelcolor='purple')
+            ax2_vent.legend(loc='upper right')
         
         plt.tight_layout()
         
@@ -559,6 +562,9 @@ async def plot_prediction():
         return {"plot_data": plot_data}
         
     except Exception as e:
+        import traceback
+        print("[DEBUG] Exception in plot_prediction:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Plot generation failed: {str(e)}")
 
 
@@ -570,8 +576,6 @@ async def get_model_info():
     
     try:
         # Get the complete configuration
-        from src.utils.config import get_controller_config, get_building_config
-        
         controller_config = get_controller_config()
         building_config = get_building_config()
         
@@ -604,7 +608,6 @@ def main():
     
     # Load configuration if specified
     if args.config_file:
-        from config import config
         config.load_config(args.config_file)
     
     # Run server

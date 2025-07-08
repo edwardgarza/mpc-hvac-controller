@@ -55,6 +55,17 @@ def test_prediction_endpoint():
         if result['next_prediction']:
             print(f"  Next prediction length: {len(result['next_prediction'])}")
         
+        # Check for new trajectory data
+        if result.get('co2_trajectory'):
+            print(f"  CO2 trajectory: {len(result['co2_trajectory'])} points")
+            print(f"    Initial CO2: {result['co2_trajectory'][0]:.1f} ppm")
+            print(f"    Final CO2: {result['co2_trajectory'][-1]:.1f} ppm")
+        
+        if result.get('temperature_trajectory'):
+            print(f"  Temperature trajectory: {len(result['temperature_trajectory'])} points")
+            print(f"    Initial temp: {result['temperature_trajectory'][0]:.1f} °C")
+            print(f"    Final temp: {result['temperature_trajectory'][-1]:.1f} °C")
+        
         return result
         
     except requests.exceptions.RequestException as e:
@@ -65,16 +76,24 @@ def test_plot_prediction_endpoint():
     """Test the /plot-prediction endpoint"""
     print("\nTesting /plot-prediction endpoint...")
     
+    # First, we need to call the predict endpoint to set up the weather series
     weather_data = create_sample_weather_data()
     
-    request_data = {
+    predict_request_data = {
         "current_co2_ppm": 800.0,
         "current_temp_c": 22.0,
         "current_time_hours": 0.0,
-        "weather_data": weather_data
+        "weather_data": weather_data,
+        "horizon_hours": 6.0
     }
     
     try:
+        # First call predict to set up the weather series
+        predict_response = requests.post(f"{BASE_URL}/predict", json=predict_request_data)
+        predict_response.raise_for_status()
+        print("  ✓ Called predict endpoint to set up weather series")
+        
+        # Now call the plot endpoint
         response = requests.get(f"{BASE_URL}/plot-prediction")
         response.raise_for_status()
         

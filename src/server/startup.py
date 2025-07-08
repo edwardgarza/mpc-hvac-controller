@@ -4,6 +4,7 @@ Start the HVAC Controller API server
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -21,8 +22,8 @@ def main():
                        help="Configuration file path (default: hvac_config.json)")
     parser.add_argument("--create-config", action="store_true",
                        help="Create default configuration file and exit")
-    parser.add_argument("--host", default="0.0.0.0", help="Server host")
-    parser.add_argument("--port", type=int, default=8000, help="Server port")
+    parser.add_argument("--host", default=os.getenv("HVAC_HOST", "0.0.0.0"), help="Server host")
+    parser.add_argument("--port", type=int, default=int(os.getenv("HVAC_PORT", "8000")), help="Server port")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     
     args = parser.parse_args()
@@ -52,6 +53,12 @@ def main():
               f"{len(full_config.building.windows)} windows")
         print(f"Controller: {full_config.controller.horizon_hours}h horizon, "
               f"{full_config.controller.step_size_hours}h steps")
+        
+        # Use server config from file, with fallback to command line args
+        server_host = args.host if args.host != os.getenv("HVAC_HOST", "0.0.0.0") else full_config.server.host
+        server_port = args.port if args.port != int(os.getenv("HVAC_PORT", "8000")) else full_config.server.port
+        server_reload = args.reload or full_config.server.reload
+        
     except Exception as e:
         print(f"Error loading configuration: {e}")
         return
@@ -61,14 +68,14 @@ def main():
         import uvicorn
         from server.main import app
         
-        print(f"Starting server on {args.host}:{args.port}")
-        print("API documentation available at: http://localhost:8000/docs")
+        print(f"Starting server on {server_host}:{server_port}")
+        print(f"API documentation available at: http://localhost:{server_port}/docs")
         
         uvicorn.run(
             app,
-            host=args.host,
-            port=args.port,
-            reload=args.reload
+            host=server_host,
+            port=server_port,
+            reload=server_reload
         )
     except ImportError as e:
         print(f"Missing dependency: {e}")

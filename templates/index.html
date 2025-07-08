@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HVAC Controller Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>HVAC Controller Dashboard</h1>
+            <nav>
+                <a href="#dashboard" class="nav-link active">Dashboard</a>
+                <a href="#config" class="nav-link">Configuration</a>
+                <a href="#api" class="nav-link">API</a>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="section active">
+                <h2>Live Dashboard</h2>
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Current Status</h3>
+                        <div class="status-grid">
+                            <div class="status-item">
+                                <label>CO₂ Level:</label>
+                                <span id="co2-level">--</span> ppm
+                            </div>
+                            <div class="status-item">
+                                <label>Temperature:</label>
+                                <span id="temp-level">--</span> °C
+                            </div>
+                            <div class="status-item">
+                                <label>Ventilation:</label>
+                                <span id="ventilation-status">--</span>
+                            </div>
+                            <div class="status-item">
+                                <label>HVAC:</label>
+                                <span id="hvac-status">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Quick Actions</h3>
+                        <div class="action-buttons">
+                            <button onclick="runPrediction()" class="btn btn-primary">Run Prediction</button>
+                            <button onclick="generatePlot()" class="btn btn-secondary">Generate Plot</button>
+                            <button onclick="refreshStatus()" class="btn btn-secondary">Refresh Status</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>Prediction Plot</h3>
+                    <div id="plot-container" class="plot-container">
+                        <p>Click "Generate Plot" to see the latest prediction</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Configuration Section -->
+            <section id="config" class="section">
+                <h2>Configuration</h2>
+                <div class="config-container">
+                    <div class="card">
+                        <h3>Current Configuration</h3>
+                        <button onclick="loadConfig()" class="btn btn-primary">Load Current Config</button>
+                        <button onclick="saveConfig()" class="btn btn-success">Save Configuration</button>
+                        <button onclick="downloadConfig()" class="btn btn-secondary">Download Config</button>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>Configuration Editor</h3>
+                        <div class="editor-container">
+                            <textarea id="config-editor" placeholder="Configuration JSON will appear here..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- API Section -->
+            <section id="api" class="section">
+                <h2>API Documentation</h2>
+                <div class="api-endpoints">
+                    <div class="endpoint">
+                        <h3>GET /config</h3>
+                        <p>Get current configuration</p>
+                        <button onclick="testEndpoint('GET', '/config')" class="btn btn-small">Test</button>
+                    </div>
+                    
+                    <div class="endpoint">
+                        <h3>POST /predict</h3>
+                        <p>Get next prediction with optional horizon</p>
+                        <button onclick="testEndpoint('POST', '/predict')" class="btn btn-small">Test</button>
+                    </div>
+                    
+                    <div class="endpoint">
+                        <h3>GET /plot-prediction</h3>
+                        <p>Generate prediction plot</p>
+                        <button onclick="testEndpoint('GET', '/plot-prediction')" class="btn btn-small">Test</button>
+                    </div>
+                    
+                    <div class="endpoint">
+                        <h3>GET /model-info</h3>
+                        <p>Get model information</p>
+                        <button onclick="testEndpoint('GET', '/model-info')" class="btn btn-small">Test</button>
+                    </div>
+                </div>
+                
+                <div id="api-result" class="api-result"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html> 

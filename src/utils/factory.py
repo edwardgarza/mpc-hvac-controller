@@ -3,14 +3,14 @@ Factory for creating BuildingModel instances from configuration.
 """
 
 from typing import List
-from utils.config import BuildingConfig, WallConfig, WindowConfig, RoofConfig, FloorConfig, HeatingSystemConfig, CO2SourceConfig, RoomConfig
-from models.building import (
+from src.utils.config import BuildingConfig, WallConfig, WindowConfig, RoofConfig, FloorConfig, HeatingSystemConfig, CO2SourceConfig, RoomConfig
+from src.models.building import (
     BuildingModel, WallModel, WindowModel, RoofModel, SlabModel, PierAndBeam,
     Studs
 )
-from models.heating import HeatingModel, ElectricResistanceHeatingModel, HeatPumpHeatingModel
-from utils.orientation import Orientation
-from controllers.ventilation.models import CO2Source
+from src.models.heating import HeatingModel, ElectricResistanceHeatingModel, HeatPumpHeatingModel
+from src.utils.orientation import Orientation
+from src.controllers.ventilation.models import CO2Source
 
 
 def create_orientation(orientation_float: float) -> Orientation:
@@ -166,6 +166,6 @@ def create_building_model(building_config: BuildingConfig) -> BuildingModel:
 
 def create_default_building_model() -> BuildingModel:
     """Create a default building model for testing"""
-    from utils.config import config
+    from src.utils.config import config
     default_config = config.get_default_config()
     return create_building_model(default_config.building) 
