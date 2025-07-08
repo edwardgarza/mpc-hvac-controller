@@ -1,6 +1,6 @@
-name: "HVAC Controller"
+name: "HVAC MPC Controller"
 version: "0.0.1"
-slug: "hvac_controller"
+slug: "hvac_mpc_controller"
 description: "Model Predictive Control HVAC system with CO2 and ventilation management"
 arch:
   - armhf
