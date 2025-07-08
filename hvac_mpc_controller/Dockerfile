@@ -12,20 +12,19 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt ./
-# Copy server requirements if it exists, otherwise create empty file
-RUN if [ -f requirements_server.txt ]; then cp requirements_server.txt .; else echo "# No server requirements" > requirements_server.txt; fi
+# Copy requirements from parent directory
+COPY ../requirements.txt ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt -r requirements_server.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY src/ ./src/
-COPY static/ ./static/
-COPY templates/ ./templates/
-COPY start_server.py ./
+# Copy application code from parent directory
+COPY ../src/ ./src/
+COPY ../static/ ./static/
+COPY ../templates/ ./templates/
+COPY ../start_server.py ./
 COPY generate_config.py ./
+COPY run.sh ./
 
 # Create non-root user
 RUN adduser -D -s /bin/bash app && chown -R app:app /app
