@@ -2,11 +2,12 @@ ARG BUILD_FROM
 FROM $BUILD_FROM
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     gcc \
     g++ \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    python3-dev \
+    musl-dev
 
 # Set working directory
 WORKDIR /app
@@ -27,7 +28,7 @@ COPY start_server.py ./
 COPY generate_config.py ./
 
 # Create non-root user
-RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+RUN adduser -D -s /bin/bash app && chown -R app:app /app
 USER app
 
 # Expose port
@@ -38,4 +39,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
 # Start the server
-CMD ["/app/run"] 
+CMD ["/app/run.sh"] 
