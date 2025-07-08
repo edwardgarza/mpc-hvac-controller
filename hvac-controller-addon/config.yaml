@@ -1,0 +1,74 @@
+name: "HVAC Controller"
+version: "0.0.1"
+slug: "hvac_controller"
+description: "Model Predictive Control HVAC system with CO2 and ventilation management"
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+startup: application
+init: false
+ports:
+  8000/tcp: 8000
+map:
+  - config:rw
+options:
+  # Sensor selection
+  co2_sensor: "sensor.living_room_co2"
+  temperature_sensor: "sensor.living_room_temperature"
+  weather_entity: "weather.home"
+  
+  # Controller settings
+  horizon_hours: 24
+  co2_weight: 1.0
+  energy_weight: 1.0
+  comfort_weight: 1.0
+  co2_target_ppm: 800
+  temp_target_c: 22.0
+  step_size_hours: 0.25
+  optimization_method: "SLSQP"
+  max_iterations: 500
+  electricity_cost_per_kwh: 0.15
+  
+  # Building settings
+  room_volume_m3: 100.0
+  outdoor_co2_ppm: 400.0
+  heat_capacity: 1000000.0
+  
+  # Server settings
+  host: "0.0.0.0"
+  port: 8000
+  log_level: "info"
+
+schema:
+  # Sensor selection
+  co2_sensor: entity(domain=sensor)
+  temperature_sensor: entity(domain=sensor)
+  weather_entity: entity(domain=weather)
+  
+  # Controller settings
+  horizon_hours: int(min=1, max=168)
+  co2_weight: float(min=0.0, max=10.0)
+  energy_weight: float(min=0.0, max=10.0)
+  comfort_weight: float(min=0.0, max=10.0)
+  co2_target_ppm: int(min=400, max=2000)
+  temp_target_c: float(min=16.0, max=28.0)
+  step_size_hours: float(min=0.1, max=2.0)
+  optimization_method: match("^(SLSQP|L-BFGS-B|TNC|trust-constr)$")
+  max_iterations: int(min=10, max=2000)
+  electricity_cost_per_kwh: float(min=0.01, max=1.0)
+  
+  # Building settings
+  room_volume_m3: float(min=1.0, max=10000.0)
+  outdoor_co2_ppm: float(min=300.0, max=1000.0)
+  heat_capacity: float(min=100000.0, max=10000000.0)
+  
+  # Server settings
+  host: str
+  port: int(min=1024, max=65535)
+  log_level: match("^(debug|info|warning|error|critical)$")
+
+ingress: true
+ingress_port: 8000 

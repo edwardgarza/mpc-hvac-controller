@@ -1,0 +1,12 @@
+---
+build_from:
+  aarch64: python:3.12-slim
+  amd64: python:3.12-slim
+  armhf: python:3.12-slim
+  armv7: python:3.12-slim
+  i386: python:3.12-slim
+labels:
+  io.hass.type: addon
+  io.hass.version: "1.0.0"
+args:
+  BUILD_FROM: python:3.12-slim 
