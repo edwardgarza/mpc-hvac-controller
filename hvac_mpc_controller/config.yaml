@@ -43,32 +43,25 @@ options:
   log_level: "info"
 
 schema:
-  # Sensor selection
-  co2_sensor: entity(domain=sensor)
-  temperature_sensor: entity(domain=sensor)
-  weather_entity: entity(domain=weather)
-  
-  # Controller settings
-  horizon_hours: int(min=1, max=168)
-  co2_weight: float(min=0.0, max=10.0)
-  energy_weight: float(min=0.0, max=10.0)
-  comfort_weight: float(min=0.0, max=10.0)
-  co2_target_ppm: int(min=400, max=2000)
-  temp_target_c: float(min=16.0, max=28.0)
-  step_size_hours: float(min=0.1, max=2.0)
-  optimization_method: match("^(SLSQP|L-BFGS-B|TNC|trust-constr)$")
-  max_iterations: int(min=10, max=2000)
-  electricity_cost_per_kwh: float(min=0.01, max=1.0)
-  
-  # Building settings
-  room_volume_m3: float(min=1.0, max=10000.0)
-  outdoor_co2_ppm: float(min=300.0, max=1000.0)
-  heat_capacity: float(min=100000.0, max=10000000.0)
-  
-  # Server settings
+  co2_sensor: str
+  temperature_sensor: str
+  weather_entity: str
+  horizon_hours: int
+  co2_weight: float
+  energy_weight: float
+  comfort_weight: float
+  co2_target_ppm: int
+  temp_target_c: float
+  step_size_hours: float
+  optimization_method: str
+  max_iterations: int
+  electricity_cost_per_kwh: float
+  room_volume_m3: float
+  outdoor_co2_ppm: float
+  heat_capacity: float
   host: str
-  port: int(min=1024, max=65535)
-  log_level: match("^(debug|info|warning|error|critical)$")
+  port: int
+  log_level: str
 
 ingress: true
 ingress_port: 8000 
