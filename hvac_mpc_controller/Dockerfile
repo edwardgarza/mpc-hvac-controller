@@ -6,6 +6,9 @@ USER root
 COPY run.sh /
 COPY generate_config.py /
 
+# Debug: check what files are present
+RUN ls -la /
+
 # Make run.sh executable
 RUN chmod +x /run.sh
 
