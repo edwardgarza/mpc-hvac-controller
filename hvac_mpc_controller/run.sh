@@ -10,7 +10,7 @@ ls -la
 echo "Running generate_config.py..."
 python3 generate_config.py
 
-# Start cron daemon in background
+# Start cron daemon (needs to run as root)
 echo "Starting cron daemon..."
 cron
 

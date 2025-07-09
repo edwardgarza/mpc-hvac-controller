@@ -18,7 +18,5 @@ RUN touch /var/log/cron.log
 COPY run.sh /
 RUN chmod a+x /run.sh
 
-USER app
-
 # Use our run script that starts both cron and the server
 CMD ["/run.sh"] 
