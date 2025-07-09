@@ -1,41 +1,15 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Install system dependencies
-RUN apk add --no-cache \
-    gcc \
-    g++ \
-    curl \
-    python3-dev \
-    musl-dev
+# Use the published main project image as base
+FROM ghcr.io/yourusername/mpc-hvac-controller:latest
 
-# Set working directory
-WORKDIR /app
+# Copy add-on specific files
+COPY generate_config.py /app/
+COPY run.sh /app/
 
-# Copy requirements from parent directory
-COPY ../requirements.txt ./
+# Make run.sh executable
+RUN chmod +x /app/run.sh
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application code from parent directory
-COPY ../src/ ./src/
-COPY ../static/ ./static/
-COPY ../templates/ ./templates/
-COPY ../start_server.py ./
-COPY generate_config.py ./
-COPY run.sh ./
-
-# Create non-root user
-RUN adduser -D -s /bin/bash app && chown -R app:app /app
-USER app
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
-
-# Start the server
+# Change the CMD to use the add-on's run script
 CMD ["/app/run.sh"] 

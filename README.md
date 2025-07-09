@@ -1,4 +1,8 @@
-# mpc-hvac-controller
+# MPC HVAC Controller
+
+Model Predictive Control HVAC system with CO2 and ventilation management.
+
+<!-- Updated to test GitHub Action -->
 The goal of this is to have a more intelligent heating/cooling schedule that takes into account building parameters, occupant comfort, and predicted weather patterns.
 
 At a high level, a traditional thermostat works as a [pid](https://en.wikipedia.org/wiki/PID_controller) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy use, cost, or even carbon intensity of the electric sources. This also includes ventillation for controlling CO2 levels.
