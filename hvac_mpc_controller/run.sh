@@ -12,7 +12,7 @@ python3 generate_config.py
 
 # Start cron daemon in background
 echo "Starting cron daemon..."
-crond
+cron
 
 # Start the server using the existing start_server.py
 echo "Starting server on 0.0.0.0:8000"
