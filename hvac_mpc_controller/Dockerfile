@@ -2,7 +2,7 @@ ARG BUILD_FROM
 FROM $BUILD_FROM
 
 # Use the published main project image as base
-FROM ghcr.io/yourusername/mpc-hvac-controller:latest
+FROM ghcr.io/edwardgarza/mpc-hvac-controller:latest
 
 # Copy add-on specific files
 COPY generate_config.py /app/
