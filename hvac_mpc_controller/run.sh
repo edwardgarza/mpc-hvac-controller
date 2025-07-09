@@ -1,7 +1,6 @@
-#!/usr/bin/with-contenv bashio
+#!/bin/bash
 
-# Log startup
-bashio::log.info "Starting HVAC Controller add-on"
+echo "Starting HVAC Controller add-on"
 
 # Generate config from add-on options
 python3 /app/generate_config.py
