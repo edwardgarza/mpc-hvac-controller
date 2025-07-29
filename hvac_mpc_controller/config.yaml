@@ -25,12 +25,9 @@ options:
   co2_weight: 1.0
   energy_weight: 1.0
   comfort_weight: 1.0
-  co2_target_ppm: 800
-  temp_target_c: 22.0
   step_size_hours: 0.25
   optimization_method: "SLSQP"
   max_iterations: 500
-  electricity_cost_per_kwh: 0.15
   
   # Building settings
   room_volume_m3: 100.0
@@ -50,12 +47,9 @@ schema:
   co2_weight: float
   energy_weight: float
   comfort_weight: float
-  co2_target_ppm: int
-  temp_target_c: float
   step_size_hours: float
   optimization_method: str
   max_iterations: int
-  electricity_cost_per_kwh: float
   room_volume_m3: float
   outdoor_co2_ppm: float
   heat_capacity: float

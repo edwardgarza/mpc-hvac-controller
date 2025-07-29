@@ -28,24 +28,6 @@ def test_config():
     # Get current config
     response = requests.get(f"{BASE_URL}/config")
     print(f"Current config: {response.json()}")
-    
-    # Update config
-    new_config = {
-        "horizon_hours": 12.0,
-        "co2_weight": 0.5,
-        "energy_weight": 2.0,
-        "comfort_weight": 1.5,
-        "co2_target_ppm": 750.0,
-        "temp_target_c": 21.0,
-        "step_size_hours": 0.5,
-        "optimization_method": "SLSQP",
-        "max_iterations": 300,
-        "electricity_cost_per_kwh": 0.12
-    }
-    
-    response = requests.post(f"{BASE_URL}/config", json=new_config)
-    print(f"Config update response: {response.json()}")
-    print()
 
 
 def create_sample_weather_forecast() -> List[dict]:
@@ -78,7 +60,7 @@ def test_control():
         "current_co2_ppm": 1200.0,
         "current_temp_c": 19.5,
         "weather_forecast": weather_forecast,
-        "current_time_hours": 6.0
+        "current_time_hours": 6.0,
     }
     
     response = requests.post(f"{BASE_URL}/control", json=request_data)
@@ -91,35 +73,6 @@ def test_control():
         print(f"  Total cost: {result['total_cost']:.3f}")
         print(f"  Final CO2: {result['additional_info']['final_co2']:.1f} ppm")
         print(f"  Final temp: {result['additional_info']['final_temp']:.1f}°C")
-    else:
-        print(f"Error: {response.status_code}")
-        print(f"Response: {response.text}")
-    
-    print()
-
-
-def test_simulation():
-    """Test simulation endpoint"""
-    print("Testing simulation endpoint...")
-    
-    weather_forecast = create_sample_weather_forecast()
-    
-    request_data = {
-        "initial_co2_ppm": 1500.0,
-        "initial_temp_c": 18.0,
-        "weather_forecast": weather_forecast
-    }
-    
-    response = requests.post(f"{BASE_URL}/simulate", json=request_data)
-    
-    if response.status_code == 200:
-        result = response.json()
-        print("Simulation results:")
-        print(f"  Final CO2: {result['co2_history'][-1]:.1f} ppm")
-        print(f"  Final temp: {result['temp_history'][-1]:.1f}°C")
-        print(f"  Total cost: {result['total_cost']:.3f}")
-        print(f"  Cost breakdown: {result['cost_breakdown']}")
-        print(f"  Simulation steps: {len(result['time_hours'])}")
     else:
         print(f"Error: {response.status_code}")
         print(f"Response: {response.text}")
@@ -149,7 +102,6 @@ def main():
         test_config()
         test_models()
         test_control()
-        test_simulation()
         
         print("All tests completed successfully!")
         

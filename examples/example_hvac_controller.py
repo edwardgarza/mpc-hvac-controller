@@ -6,7 +6,7 @@ Example demonstrating the integrated HVAC controller with TimeSeries weather dat
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from src.controllers.ventilation.models import (
@@ -112,25 +112,23 @@ def run_hvac_example():
     controller = HvacController(
         room_dynamics=room_dynamics,
         building_model=building_model,
-        horizon_hours=6.0,
+        horizon_hours=12.0,
         co2_weight=0.1,
         energy_weight=3000.0,
         comfort_weight=0.001,
-        co2_target_ppm=800,
-        temp_target_c=22.0,
         step_size_hours=0.5,
         optimization_method="SLSQP",
         max_iterations=500,
         use_linear_trajectories=True,
-        electricity_cost_per_kwh=energy_cost_per_kwh
     )
-    
+    controller.set_saved_schedule({"monday": [
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": energy_cost_per_kwh}]})
+
     # Initial conditions
     current_co2_ppm = 2000.0
     current_temp_c = 17.1
 
     print(f"Initial conditions: CO2={current_co2_ppm} ppm, Temp={current_temp_c}°C")
-    print(f"Targets: CO2={controller.co2_target_ppm} ppm, Temp={controller.temp_target_c}°C")
     
     # Create weather TimeSeries
     weather_series = create_weather_timeseries(48)  # 48-hour forecast
@@ -153,16 +151,15 @@ def run_hvac_example():
     comfort_cost_history = []
     
     print(f"\nRunning step-by-step simulation for {simulation_steps} steps ({simulation_hours} hours)...")
-    
+    # pick random starting time
+    start_time = datetime.datetime.fromisoformat("2024-01-15T09:30:00")
     for step in range(simulation_steps):
         # Current simulation time
-        current_time = step * controller.step_size_hours
-        
+        current_time = start_time + datetime.timedelta(hours = step * controller.step_size_hours)
         # Get control actions for next step using TimeSeries
         ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
             current_co2_ppm, current_temp_c, weather_series, current_time
         )
-        
         # Debug: Print detailed cost breakdown
         if step % 4 == 0:
             print(f"\n=== Step {step} (Time: {current_time:.1f}h) Cost Analysis ===")
@@ -171,7 +168,7 @@ def run_hvac_example():
             print(f"Total cost: {total_cost:.3f}")
             
             # Get current weather for display
-            current_weather = weather_series.interpolate(current_time)
+            current_weather = weather_series.interpolate(step * controller.step_size_hours)
             if current_weather is not None:
                 print(f"Current weather: {current_weather.outdoor_temperature:.1f}°C")
             else:

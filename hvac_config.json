@@ -4,12 +4,9 @@
     "co2_weight": 1.0,
     "energy_weight": 1.0,
     "comfort_weight": 1.0,
-    "co2_target_ppm": 800.0,
-    "temp_target_c": 22.0,
-    "step_size_hours": 0.25,
+    "step_size_hours": 0.5,
     "optimization_method": "SLSQP",
-    "max_iterations": 500,
-    "electricity_cost_per_kwh": 0.15
+    "max_iterations": 500
   },
   "building": {
     "heat_capacity": 1000000.0,
@@ -130,5 +127,40 @@
     "port": 8000,
     "reload": false,
     "log_level": "info"
+  },
+  "schedules": {
+    "weekly_schedule": {
+      "monday": [
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+      ],
+      "tuesday": [
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+      ],
+      "wednesday": [
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+      ],
+      "thursday": [
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+      ],
+      "friday": [
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+      ],
+      "saturday": [
+        {"time": "10:00", "co2": 1000, "temperature": 20, "energy_cost": 0.08}
+      ],
+      "sunday": [
+        {"time": "12:00", "co2": 1000, "temperature": 20, "energy_cost": 0.08}
+      ]
+    }
   }
 }

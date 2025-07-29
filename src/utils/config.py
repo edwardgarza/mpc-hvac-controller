@@ -139,12 +139,9 @@ class ControllerConfig(BaseModel):
     co2_weight: float = Field(default=1.0, ge=0.0, description="Weight for CO2 deviation penalty")
     energy_weight: float = Field(default=1.0, ge=0.0, description="Weight for energy cost")
     comfort_weight: float = Field(default=1.0, ge=0.0, description="Weight for temperature comfort")
-    co2_target_ppm: float = Field(default=800.0, ge=400.0, le=2000.0, description="Target CO2 concentration")
-    temp_target_c: float = Field(default=22.0, ge=16.0, le=28.0, description="Target indoor temperature")
     step_size_hours: float = Field(default=0.25, ge=0.1, le=2.0, description="Time step size")
     optimization_method: str = Field(default="SLSQP", description="Optimization method")
     max_iterations: int = Field(default=500, ge=10, le=2000, description="Maximum optimization iterations")
-    electricity_cost_per_kwh: float = Field(default=0.15, ge=0.01, le=1.0, description="Electricity cost per kWh")
     
     @field_validator('optimization_method')
     @classmethod
@@ -173,10 +170,14 @@ class ServerConfig(BaseModel):
 
 
 class FullConfig(BaseModel):
-    """Complete configuration including building, controller, and server"""
+    """Complete configuration including building, controller, server, and schedules"""
     controller: ControllerConfig = Field(default_factory=ControllerConfig, description="Controller configuration")
     building: BuildingConfig = Field(default_factory=BuildingConfig, description="Building configuration")
     server: ServerConfig = Field(default_factory=ServerConfig, description="Server configuration")
+    schedules: Optional[dict] = Field(default=None, description="Weekly schedule configuration")
+    
+    class Config:
+        extra = "allow"  # Allow extra fields in JSON
 
 
 class Config:
@@ -200,7 +201,17 @@ class Config:
             with open(config_path, 'r') as f:
                 config_dict = json.load(f)
             
-            return FullConfig(**config_dict)
+            print(f"DEBUG: Loaded JSON keys: {list(config_dict.keys())}")
+            if 'schedules' in config_dict:
+                print(f"DEBUG: Schedules in JSON: {config_dict['schedules']}")
+            else:
+                print("DEBUG: No 'schedules' key in JSON")
+            
+            full_config = FullConfig(**config_dict)
+            print(f"DEBUG: Parsed config has schedules: {hasattr(full_config, 'schedules')}")
+            print(f"DEBUG: Parsed config.schedules: {getattr(full_config, 'schedules', None)}")
+            
+            return full_config
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in configuration file: {e}")
         except Exception as e:
@@ -236,7 +247,8 @@ class Config:
         return FullConfig(
             controller=ControllerConfig(),
             building=default_building,
-            server=ServerConfig()
+            server=ServerConfig(),
+            schedules=None  # Default to no schedules
         )
     
     def load_config(self, config_file: Optional[str] = None) -> FullConfig:
@@ -253,9 +265,11 @@ class Config:
                 print(f"Warning: Could not load config from file {config_file}: {e}")
                 print("Falling back to default configuration")
         
-        # Use defaults
-        self.full_config = self.get_default_config()
-        print("Using default configuration")
+        # Use defaults only if no file was specified or file loading failed
+        if self.full_config is None:
+            self.full_config = self.get_default_config()
+            print("Using default configuration")
+        
         return self.full_config
 
 
@@ -266,15 +280,16 @@ config = Config()
 def get_controller_config() -> ControllerConfig:
     """Get the current controller configuration"""
     if config.full_config is None:
-        config.load_config()
+        config.load_config("hvac_config.json")
     return config.full_config.controller
 
 
 def get_building_config() -> BuildingConfig:
     """Get the current building configuration"""
     if config.full_config is None:
-        config.load_config()
+        config.load_config("hvac_config.json")
     return config.full_config.building
+
 
 
 def get_server_config() -> ServerConfig:
@@ -316,12 +331,9 @@ if __name__ == "__main__":
             "co2_weight": 1.0,
             "energy_weight": 2.0,
             "comfort_weight": 1.5,
-            "co2_target_ppm": 800.0,
-            "temp_target_c": 22.0,
             "step_size_hours": 0.25,
             "optimization_method": "SLSQP",
             "max_iterations": 500,
-            "electricity_cost_per_kwh": 0.15
         },
         "building": {
             "heat_capacity": 1000000.0,

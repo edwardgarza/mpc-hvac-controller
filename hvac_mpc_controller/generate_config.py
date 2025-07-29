@@ -17,12 +17,9 @@ def generate_config_from_options():
         "co2_weight": float(os.getenv("co2_weight", "1.0")),
         "energy_weight": float(os.getenv("energy_weight", "1.0")),
         "comfort_weight": float(os.getenv("comfort_weight", "1.0")),
-        "co2_target_ppm": float(os.getenv("co2_target_ppm", "800")),
-        "temp_target_c": float(os.getenv("temp_target_c", "22.0")),
         "step_size_hours": float(os.getenv("step_size_hours", "0.25")),
         "optimization_method": os.getenv("optimization_method", "SLSQP"),
         "max_iterations": int(os.getenv("max_iterations", "500")),
-        "electricity_cost_per_kwh": float(os.getenv("electricity_cost_per_kwh", "0.15")),
         
         # Building settings
         "room_volume_m3": float(os.getenv("room_volume_m3", "100.0")),
@@ -42,12 +39,9 @@ def generate_config_from_options():
             "co2_weight": options["co2_weight"],
             "energy_weight": options["energy_weight"],
             "comfort_weight": options["comfort_weight"],
-            "co2_target_ppm": options["co2_target_ppm"],
-            "temp_target_c": options["temp_target_c"],
             "step_size_hours": options["step_size_hours"],
             "optimization_method": options["optimization_method"],
             "max_iterations": options["max_iterations"],
-            "electricity_cost_per_kwh": options["electricity_cost_per_kwh"]
         },
         "building": {
             "heat_capacity": options["heat_capacity"],

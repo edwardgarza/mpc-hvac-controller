@@ -3,6 +3,11 @@
 Integrated HVAC Controller combining heating/cooling and ventilation control
 """
 
+import base64
+import datetime
+import io
+import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import scipy.optimize as optimize
 from typing import List, Tuple, Optional, Dict, Any
@@ -15,6 +20,7 @@ from src.models.heating import HeatingModel
 from src.models.building import BuildingModel
 from src.controllers.ventilation.models import RoomCO2Dynamics, BaseVentilationModel
 from src.utils.timeseries import TimeSeries
+from src.utils.calendar import Calendar, RelativeScheduleTimeSeries
 
 
 class HvacController:
@@ -34,13 +40,10 @@ class HvacController:
                  co2_weight: float = 1.0,
                  energy_weight: float = 1.0,
                  comfort_weight: float = 1.0,
-                 co2_target_ppm: float = 800,
-                 temp_target_c: float = 22.0,
                  step_size_hours: float = 0.25,
                  optimization_method: str = "L-BFGS-B",
                  max_iterations: int = 500,
-                 use_linear_trajectories: bool = True,
-                 electricity_cost_per_kwh: float = 0.15):
+                 use_linear_trajectories: bool = True):
         """
         Initialize integrated HVAC controller
         
@@ -51,8 +54,6 @@ class HvacController:
             co2_weight: Weight for CO2 deviation penalty
             energy_weight: Weight for energy cost
             comfort_weight: Weight for temperature comfort
-            co2_target_ppm: Target CO2 concentration
-            temp_target_c: Target indoor temperature
             step_size_hours: Time step size
             optimization_method: Optimization method
             max_iterations: Maximum optimization iterations
@@ -63,13 +64,10 @@ class HvacController:
         self.co2_weight = co2_weight
         self.energy_weight = energy_weight
         self.comfort_weight = comfort_weight
-        self.co2_target_ppm = co2_target_ppm
-        self.temp_target_c = temp_target_c
         self.step_size_hours = step_size_hours
         self.optimization_method = optimization_method
         self.max_iterations = max_iterations
         self.use_linear_trajectories = use_linear_trajectories
-        self.electricity_cost_per_kwh = electricity_cost_per_kwh
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
         self.n_steps = int(horizon_hours / step_size_hours)
@@ -82,13 +80,24 @@ class HvacController:
         # Previous control for smoothing
         self.u_prev = None
         self.next_prediction = None
+        
+        # Saved schedule from config
+        self.saved_schedule = None
+        self.set_points: RelativeScheduleTimeSeries = None 
+        self.start_time: datetime = None 
+    
+    def set_saved_schedule(self, schedule):
+        """Set the saved schedule from config"""
+        self.saved_schedule = schedule
+        self.calendar = Calendar(self.saved_schedule)
+    
     
     def predict_trajectories(self, 
                            initial_co2_ppm: float,
                            initial_temp_c: float,
                            control_sequences: List[List[List[float]]],
                            weather_series_hours: TimeSeries,
-                           start_time_hours: float = 0.0) -> Tuple[List[float], List[float]]:
+                           start_time_hours_offset: float) -> Tuple[List[float], List[float]]:
         """
         Predict both CO2 and temperature trajectories
         
@@ -97,7 +106,7 @@ class HvacController:
             initial_temp_c: Starting temperature inside
             control_sequences: Control sequences [ventilation_controls, hvac_controls]
             weather_series_hours: TimeSeries of weather conditions
-            start_time_hours: Starting time for prediction (hours from weather series start)
+            start_time_hours_offset: Starting time for prediction (hours from weather series start)
             
         Returns:
             Tuple of (co2_trajectory, temp_trajectory)
@@ -110,15 +119,16 @@ class HvacController:
         
         ventilation_controls = control_sequences[0]
         hvac_controls = control_sequences[1]
-        
+        self.weather_series_hours = weather_series_hours
         for i in range(self.n_steps):
             # Extract control inputs for this time step
             ventilation_inputs = [ventilation_controls[j][i] for j in range(self.n_ventilation)]
             hvac_input = hvac_controls[0][i]  # hvac_controls is a list of lists
             
             # Get weather at current prediction time
-            current_time = start_time_hours + i * self.step_size_hours
-            weather = weather_series_hours.interpolate(current_time)
+            # current_time_offset = i * self.step_size_hours + start_time_hours_offset
+            current_time_offset = i * self.step_size_hours + 0
+            weather = weather_series_hours.interpolate(current_time_offset)
             
             if self.use_linear_trajectories:
                 current_co2 = self.room_dynamics.co2_change_per_s(current_co2, ventilation_inputs) * self.step_size_seconds + current_co2
@@ -159,40 +169,43 @@ class HvacController:
         
         return co2_trajectory, temp_trajectory
     
-    def comfort_cost(self, temperature_c: float) -> float:
+    def comfort_cost(self, temperature_c: float, time_hours: float = 0.0) -> float:
         """
         Calculate comfort cost based on temperature deviation from target
         
         Args:
-            temperature_c: Indoor temperature in Celsius
+            temperature_c: Current temperature
+            time_hours: Current time for dynamic setpoint lookup
             
         Returns:
-            Comfort cost (higher values indicate worse comfort)
+            Comfort cost
         """
-        deviation = abs(temperature_c - self.temp_target_c)
-        return self.comfort_weight * deviation ** 2
+        # Use dynamic setpoints if provided, otherwise use saved schedule
+        target_temp = self.set_points.interpolate_step_temp(time_hours)
         
+        deviation = abs(temperature_c - target_temp)
+        return self.comfort_weight * (deviation ** 2)
     
-    def co2_cost(self, co2_ppm: float) -> float:
+    def co2_cost(self, co2_ppm: float, time_hours: float = 0.0) -> float:
         """
         Calculate CO2 cost
         
         Args:
-            co2_ppm: CO2 concentration in ppm
+            co2_ppm: Current CO2 concentration
+            time_hours: Current time for dynamic setpoint lookup
             
         Returns:
             CO2 cost
         """
-        if co2_ppm <= self.co2_target_ppm:
-            return 0.0
-        else:
-            deviation = co2_ppm - self.co2_target_ppm
-            return self.co2_weight * (deviation ** 2)
+        target_co2 = self.set_points.interpolate_step_co2(time_hours)        
+        deviation = max(0, co2_ppm - target_co2)
+        return self.co2_weight * (deviation ** 2)
     
     def energy_cost(self, ventilation_inputs: List[float], 
                    hvac_input: float,
                    indoor_temp_c: float, 
-                   outdoor_temp_c: float) -> float:
+                   outdoor_temp_c: float,
+                   time_hours: float = 0.0) -> float:
         """
         Calculate total energy cost for ventilation and HVAC. Note that this is not the same as the energy cost of the building model.
 
@@ -203,17 +216,21 @@ class HvacController:
             hvac_input: Heating/cooling control input (positive=heating, negative=cooling)
             indoor_temp_c: Indoor temperature
             outdoor_temp_c: Outdoor temperature
+            time_hours: Current time for dynamic cost lookup
             
         Returns:
             Total energy cost per second
         """
+        # Use dynamic costs if provided, otherwise use saved schedule
+        electricity_cost = self.set_points.interpolate_step_energy_cost(time_hours)
+        
         total_cost_per_s = 0.0
         
         # Ventilation energy cost
         for (vent_model, vent_input) in zip(self.room_dynamics.controllable_ventilations, ventilation_inputs):
-            total_cost_per_s += vent_model.fan_power_w(vent_input) * self.electricity_cost_per_kwh / 3600 / 1000
+            total_cost_per_s += vent_model.fan_power_w(vent_input) * electricity_cost / 3600 / 1000
                 
-        total_cost_per_s += abs(hvac_input) * self.electricity_cost_per_kwh / 3600 / 1000
+        total_cost_per_s += abs(hvac_input) * electricity_cost / 3600 / 1000
         
         return total_cost_per_s
     
@@ -221,7 +238,7 @@ class HvacController:
                      current_co2_ppm: float,
                      current_temp_c: float,
                      weather_series_hours: TimeSeries,
-                     start_time_hours: float = 0.0) -> float:
+                     start_time_hours_offset: float) -> float:
         """
         Calculate total cost for integrated HVAC control
         
@@ -252,28 +269,30 @@ class HvacController:
         co2_trajectory, temp_trajectory = self.predict_trajectories(
             current_co2_ppm, current_temp_c, 
             [ventilation_sequences, [hvac_sequence]], 
-            weather_series_hours, start_time_hours
+            weather_series_hours, start_time_hours_offset
         )
-        
+        self.co2_trajectory = co2_trajectory
+        self.temp_trajectory = temp_trajectory
         total_cost = 0.0
         
         for i in range(self.n_steps):
             # CO2 cost
-            co2_cost = self.co2_cost(co2_trajectory[i]) * self.step_size_seconds
+            current_time_offset = i * self.step_size_hours + start_time_hours_offset
+            co2_cost = self.co2_cost(co2_trajectory[i], current_time_offset) * self.step_size_seconds
             
             # Comfort cost
-            comfort_cost = self.comfort_cost(temp_trajectory[i])* self.step_size_seconds
+            comfort_cost = self.comfort_cost(temp_trajectory[i], current_time_offset) * self.step_size_seconds
             
             # Energy cost
             ventilation_inputs = [ventilation_sequences[j][i] for j in range(self.n_ventilation)]
             hvac_input = hvac_sequence[i]
-            current_time = start_time_hours + i * self.step_size_hours
-            weather = weather_series_hours.interpolate(current_time)
+            weather = weather_series_hours.interpolate(current_time_offset)
             outdoor_temp = weather.outdoor_temperature
             
             energy_cost = self.energy_cost(
                 ventilation_inputs, hvac_input,
-                temp_trajectory[i], outdoor_temp
+                temp_trajectory[i], outdoor_temp,
+                current_time_offset
             ) * self.step_size_seconds * self.energy_weight
             
             total_cost += co2_cost + comfort_cost + energy_cost
@@ -294,7 +313,7 @@ class HvacController:
                          current_co2_ppm: float,
                          current_temp_c: float,
                          weather_series_hours: TimeSeries,
-                         start_time_hours: float = 0.0) -> Tuple[List[float], List[float], float]:
+                         start_time: datetime) -> Tuple[List[float], List[float], float]:
         """
         Optimize both ventilation and HVAC controls
         
@@ -307,11 +326,12 @@ class HvacController:
             Tuple of (ventilation_controls, hvac_controls, total_cost)
         """
         # Ensure weather series has enough data for the horizon
-        max_time_needed = start_time_hours + self.horizon_hours
+        max_time_needed = self.horizon_hours
         if max_time_needed > weather_series_hours.ticks[-1]:
             print(f"Warning: Weather forecast only goes to {weather_series_hours.ticks[-1]} hours, but need {max_time_needed} hours")
             # Use the last available weather for extrapolation
-        
+        self.start_time = start_time
+        self.set_points = self.calendar.get_relative_schedule(start_time)
         # Initial guess
         if self.u_prev is not None:
             u0 = self.next_prediction
@@ -332,7 +352,7 @@ class HvacController:
         result = optimize.minimize(
             self.cost_function,
             u0,
-            args=(current_co2_ppm, current_temp_c, weather_series_hours, start_time_hours),
+            args=(current_co2_ppm, current_temp_c, weather_series_hours, 0),
             method=self.optimization_method,
             bounds=bounds,
             options={'maxiter': self.max_iterations}
@@ -351,7 +371,7 @@ class HvacController:
             ventilation_controls.append(ventilation_vector[start_idx])
         hvac_control = hvac_vector[0]
         total_cost = result.fun
-        
+
         # Store for next iteration
         self.u_prev = ventilation_controls + [hvac_control]
 
@@ -373,7 +393,84 @@ class HvacController:
     
     def get_next_prediction(self) -> Optional[np.ndarray]:
         return self.next_prediction
+
+    def get_start_time(self) -> datetime:
+        return self.start_time
     
+    def generate_plot(self):
+        predicted_controls = self.get_next_prediction()
+        x_axis = []
+        set_point_temp = []
+        set_point_co2 = []
+        energy_cost = []
+        outdoor_temp = []
+        
+        n_ventilation_vars = self.n_ventilation * self.n_steps
+        print(f"[DEBUG] n_ventilation: {self.n_ventilation}, n_steps: {self.n_steps}, n_ventilation_vars: {n_ventilation_vars}")
+        ventilation_vector = predicted_controls[:n_ventilation_vars]
+        hvac_vector = predicted_controls[n_ventilation_vars:]
+        print(f"[DEBUG] ventilation_vector len: {len(ventilation_vector)}, hvac_vector len: {len(hvac_vector)}")
+
+        # Reshape into sequences
+        ventilation_sequences = []
+        for i in range(self.n_ventilation):
+            start_idx = i * self.n_steps
+            end_idx = (i + 1) * self.n_steps
+            ventilation_sequences.append(ventilation_vector[start_idx:end_idx].tolist())
+        print(f"[DEBUG] ventilation_sequences lens: {[len(seq) for seq in ventilation_sequences]}")
+        hvac_sequence = hvac_vector.tolist()
+
+
+        for step in range(self.n_steps + 1):
+            relative_time_delta = self.step_size_hours * step
+            time = self.get_start_time() + datetime.timedelta(seconds=self.step_size_seconds * step)
+            x_axis.append(time)
+            set_point_temp.append(self.set_points.interpolate_step_temp(relative_time_delta))
+            set_point_co2.append(self.set_points.interpolate_step_co2(relative_time_delta))
+            energy_cost.append(self.set_points.interpolate_step_energy_cost(relative_time_delta))
+            outdoor_temp.append(self.weather_series_hours.interpolate(relative_time_delta).outdoor_temperature)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        ax1.set_title('Temperature and HVAC controls')
+        ax1_control = ax1.twinx()
+        ax1_control.plot(x_axis[1:], hvac_sequence, label="HVAC Controls", linestyle='--',)
+        ax1_control.set_ylabel('Heating/Cooling Control Value (W)', color='red')
+        ax1.plot(x_axis, set_point_temp, label="Set Point Temp", color='green')
+        ax1.plot(x_axis, self.temp_trajectory, label="Indoor Temp", color='orange')
+        ax1.plot(x_axis, outdoor_temp, label="Outdoor Temp", color="blue")
+        ax1.set_ylabel("Temperature")
+        ax1.legend(loc='upper left')
+        ax1_control.legend(loc='upper right')
+        ax1.grid(True, alpha=0.3)
+
+        ax2_vent = ax2.twinx()
+        ax2.set_ylabel("CO2 PPM")
+        ax2.set_title('CO₂ Levels and Ventilation Controls')
+        ax2_vent.set_ylabel('Ventilation Control Value (m^3/hr)', color='purple')
+        ax2.plot(x_axis, self.co2_trajectory, label="CO2 Levels", color='orange')
+        ax2.plot(x_axis, set_point_co2, label="Set Point CO2", color='green')
+
+        for i in range(len(ventilation_sequences)):
+            ax2_vent.plot(x_axis[1:], ventilation_sequences[i], linestyle='--',
+            label="Ventillation " + type(self.room_dynamics.controllable_ventilations[i]).__name__)
+        ax2_vent.legend(loc='upper left')
+        
+        ax2.legend(loc='upper right')
+        ax2.grid(True, alpha=0.3)
+
+        # plt.plot(x_axis, energy_cost, label="energy")
+        plt.tight_layout()
+        plt.show()
+        # Convert plot to base64 string
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+        buffer.seek(0)
+        plot_data = base64.b64encode(buffer.getvalue()).decode()
+        plt.close()
+        
+        return {"plot_data": plot_data}
+
+
     def get_control_info(self,
                         current_co2_ppm: float,
                         current_temp_c: float,

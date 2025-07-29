@@ -36,12 +36,9 @@ def demonstrate_config_loading():
         "co2_weight": 1.0,
         "energy_weight": 2.0,
         "comfort_weight": 1.5,
-        "co2_target_ppm": 800.0,
-        "temp_target_c": 22.0,
         "step_size_hours": 0.25,
         "optimization_method": "SLSQP",
-        "max_iterations": 500,
-        "electricity_cost_per_kwh": 0.15
+        "max_iterations": 500
     }
     print(json.dumps(example_config, indent=2))
     
