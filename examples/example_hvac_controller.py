@@ -14,7 +14,7 @@ from src.controllers.ventilation.models import (
     ERVModel, NaturalVentilationModel, CO2Source
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
-from src.models.heating import HeatPumpHeatingModel, ElectricResistanceHeatingModel
+from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
 from src.controllers.hvac import HvacController
 from src.models.weather import WeatherConditions, SolarIrradiation
 from src.utils.orientation import Orientation
@@ -54,8 +54,8 @@ def create_example_building():
     floor = PierAndBeam(Studs(1.5, 5.5, 16), 30, 50, Orientation())  # 50 m² floor
     
     # Create heating model
-    heating_model = HeatPumpHeatingModel(hspf=9.0, output_range=(-10000, 10000))
-    # heating_model = ElectricResistanceHeatingModel()
+    heating_model = HeatPumpThermalDeviceModel(hspf=9.0, output_range=(-10000, 10000))
+    # heating_model = ElectricResistanceThermalDeviceModel()
     # Create building model
     building_model = BuildingModel(
         thermal_models=[wall, window, roof, floor],
@@ -119,7 +119,6 @@ def run_hvac_example():
         step_size_hours=0.5,
         optimization_method="SLSQP",
         max_iterations=500,
-        use_linear_trajectories=True,
     )
     controller.set_saved_schedule({"monday": [
         {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": energy_cost_per_kwh}]})

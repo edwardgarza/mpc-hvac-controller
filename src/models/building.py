@@ -20,8 +20,8 @@ import numpy as np
 
 from src.utils.orientation import Orientation
 from src.models.weather import WeatherConditions
-from src.models.thermal import ThermalTransfer
-from src.models.heating import HeatingModel, ElectricResistanceHeatingModel
+from src.models.thermal_transfer import ThermalTransfer
+from src.models.thermal_device import ThermalDeviceModel, ElectricResistanceThermalDeviceModel
 
 
 class Studs:
@@ -86,7 +86,7 @@ class WallModel(ThermalTransfer):
         """
         # Wood thermal conductivity is approximately 0.12 W/m·K
         # R-value = thickness / thermal_conductivity
-        r_value_studs = self.studs.depth / 0.12  # m²·K/W
+        r_value_studs = self.studs.depth / 0.12  # m²·K/W of wood studs
         # Weighted sum of the R values based on stud spacing
         base_r = (self.studs.width * r_value_studs + 
                   (self.studs.spacing - self.studs.width) * self.insulation_r) / self.studs.spacing
@@ -279,7 +279,7 @@ class BuildingModel(ThermalTransfer):
         heating_model: Heating/cooling system model
         heat_capacity: Building heat capacity in J/K
     """
-    def __init__(self, thermal_models: List[ThermalTransfer], heating_model: HeatingModel, heat_capacity: float) -> None:
+    def __init__(self, thermal_models: List[ThermalTransfer], heating_model: ThermalDeviceModel, heat_capacity: float) -> None:
         self.thermal_models = thermal_models
         self.heating_model = heating_model
         self.heat_capacity = heat_capacity
@@ -440,5 +440,5 @@ class DefaultBuildingModel(BuildingModel):
             0,     # No floor area in default model
             default_orientation
         )
-        heating_model = ElectricResistanceHeatingModel()
+        heating_model = ElectricResistanceThermalDeviceModel()
         super().__init__([wall, window, roof, floor], heating_model, 10 * 6)  # 100 kJ/K heat capacity

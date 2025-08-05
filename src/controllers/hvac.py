@@ -15,10 +15,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
-from src.models.weather import WeatherConditions
-from src.models.heating import HeatingModel
 from src.models.building import BuildingModel
-from src.controllers.ventilation.models import RoomCO2Dynamics, BaseVentilationModel
+from src.controllers.ventilation.models import RoomCO2Dynamics
 from src.utils.timeseries import TimeSeries
 from src.utils.calendar import Calendar, RelativeScheduleTimeSeries
 
@@ -42,8 +40,8 @@ class HvacController:
                  comfort_weight: float = 1.0,
                  step_size_hours: float = 0.25,
                  optimization_method: str = "L-BFGS-B",
-                 max_iterations: int = 500,
-                 use_linear_trajectories: bool = True):
+                 max_iterations: int = 500, 
+                 use_boolean_occupant_comfort: bool = True):
         """
         Initialize integrated HVAC controller
         
@@ -57,6 +55,7 @@ class HvacController:
             step_size_hours: Time step size
             optimization_method: Optimization method
             max_iterations: Maximum optimization iterations
+            use_boolean_occupant_comfort: if occupancy is 0 don't care about temperature or CO2 levels
         """
         self.room_dynamics = room_dynamics
         self.building_model = building_model
@@ -67,7 +66,7 @@ class HvacController:
         self.step_size_hours = step_size_hours
         self.optimization_method = optimization_method
         self.max_iterations = max_iterations
-        self.use_linear_trajectories = use_linear_trajectories
+        self.use_boolean_occupant_comfort = use_boolean_occupant_comfort
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
         self.n_steps = int(horizon_hours / step_size_hours)
@@ -130,10 +129,8 @@ class HvacController:
             current_time_offset = i * self.step_size_hours + 0
             weather = weather_series_hours.interpolate(current_time_offset)
             
-            if self.use_linear_trajectories:
-                current_co2 = self.room_dynamics.co2_change_per_s(current_co2, ventilation_inputs) * self.step_size_seconds + current_co2
-            else:
-                current_co2 = self.room_dynamics.co2_levels_in_t(current_co2, ventilation_inputs, self.step_size_seconds)
+            # use linear dynamics for better convergence
+            current_co2 = self.room_dynamics.co2_change_per_s(current_co2, ventilation_inputs) * self.step_size_seconds + current_co2
             
             # Predict temperature change using building model
             # Calculate ventilation heat load (additional to building model)
@@ -152,24 +149,27 @@ class HvacController:
                     natural_vent.airflow_m3_per_hour(), current_temp, weather.outdoor_temperature
                 )
                 ventilation_heat_load += heat_load
-            if self.use_linear_trajectories:
-                # Use building model for temperature change (includes HVAC and thermal transfer)
-                temp_change_per_s = self.building_model.temperature_change_per_s(
-                    current_temp, weather, hvac_input, ventilation_heat_load * 1000
-                )
 
-                temp_change = temp_change_per_s * self.step_size_seconds
-                # print(f"old temp: {current_temp} new temp: {current_temp + temp_change} Temp change: {temp_change} per s, {temp_change * self.step_size_hours} in {self.step_size_hours} hours")
-                current_temp += temp_change
-            else:
-                raise ValueError("Non-Linear trajectories are not supported")
+            # Use building model for temperature change (includes HVAC and thermal transfer)
+            temp_change_per_s = self.building_model.temperature_change_per_s(
+                current_temp, weather, hvac_input, ventilation_heat_load * 1000
+            )
+
+            temp_change = temp_change_per_s * self.step_size_seconds
+            # print(f"old temp: {current_temp} new temp: {current_temp + temp_change} Temp change: {temp_change} per s, {temp_change * self.step_size_hours} in {self.step_size_hours} hours")
+            current_temp += temp_change
+
             # Store trajectories
             co2_trajectory.append(current_co2)
             temp_trajectory.append(current_temp)
         
         return co2_trajectory, temp_trajectory
     
-    def comfort_cost(self, temperature_c: float, time_hours: float = 0.0) -> float:
+    def _occupancy_comfort_cost_mult(self, time_hours_offset):
+        return 1 if not self.use_boolean_occupant_comfort else self.set_points.interpolate_step_occupancy_count(time_hours_offset) > 0
+
+
+    def comfort_cost(self, temperature_c: float, time_hours_offset: float = 0.0) -> float:
         """
         Calculate comfort cost based on temperature deviation from target
         
@@ -181,12 +181,11 @@ class HvacController:
             Comfort cost
         """
         # Use dynamic setpoints if provided, otherwise use saved schedule
-        target_temp = self.set_points.interpolate_step_temp(time_hours)
-        
+        target_temp = self.set_points.interpolate_step_temp(time_hours_offset)
         deviation = abs(temperature_c - target_temp)
-        return self.comfort_weight * (deviation ** 2)
+        return self.comfort_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset)
     
-    def co2_cost(self, co2_ppm: float, time_hours: float = 0.0) -> float:
+    def co2_cost(self, co2_ppm: float, time_hours_offset: float = 0.0) -> float:
         """
         Calculate CO2 cost
         
@@ -197,9 +196,9 @@ class HvacController:
         Returns:
             CO2 cost
         """
-        target_co2 = self.set_points.interpolate_step_co2(time_hours)        
+        target_co2 = self.set_points.interpolate_step_co2(time_hours_offset)        
         deviation = max(0, co2_ppm - target_co2)
-        return self.co2_weight * (deviation ** 2)
+        return self.co2_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset)
     
     def energy_cost(self, ventilation_inputs: List[float], 
                    hvac_input: float,

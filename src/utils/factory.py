@@ -8,7 +8,7 @@ from src.models.building import (
     BuildingModel, WallModel, WindowModel, RoofModel, SlabModel, PierAndBeam,
     Studs
 )
-from src.models.heating import HeatingModel, ElectricResistanceHeatingModel, HeatPumpHeatingModel
+from src.models.thermal_device import ThermalDeviceModel, ElectricResistanceThermalDeviceModel, HeatPumpThermalDeviceModel
 from src.utils.orientation import Orientation
 from src.controllers.ventilation.models import CO2Source
 
@@ -19,14 +19,14 @@ def create_orientation(orientation_float: float) -> Orientation:
     return Orientation()
 
 
-def create_heating_model(config: HeatingSystemConfig) -> HeatingModel:
+def create_heating_model(config: HeatingSystemConfig) -> ThermalDeviceModel:
     """Create heating model from configuration"""
     output_range = (config.output_range_min, config.output_range_max)
     
     if config.type == "electric_resistance":
-        return ElectricResistanceHeatingModel(output_range=output_range)
+        return ElectricResistanceThermalDeviceModel(output_range=output_range)
     elif config.type == "heat_pump":
-        return HeatPumpHeatingModel(
+        return HeatPumpThermalDeviceModel(
             outdoor_offset=config.outdoor_offset,
             indoor_offset=config.indoor_offset,
             hspf=config.hspf,

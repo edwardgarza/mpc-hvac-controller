@@ -1,9 +1,0 @@
-{
-  "horizon_hours": 24.0,
-  "co2_weight": 1.0,
-  "energy_weight": 1.0,
-  "comfort_weight": 1.0,
-  "step_size_hours": 0.25,
-  "optimization_method": "SLSQP",
-  "max_iterations": 500
-}

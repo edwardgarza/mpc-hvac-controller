@@ -21,6 +21,9 @@ class RelativeScheduleTimeSeries:
     def interpolate_step_energy_cost(self, time_offset_hours: float) -> float:
         return self.interpolate_step(time_offset_hours)[2]
 
+    def interpolate_step_occupancy_count(self, time_offset_hours: float) -> float:
+        return self.interpolate_step(time_offset_hours)[3]
+
 class Calendar:
     def __init__(self, weekly_schedule: Dict[str, List[Dict[str, Any]]]):
         """
@@ -58,7 +61,7 @@ class Calendar:
                     absolute_time = f"{day_date.strftime('%Y-%m-%d')}T{entry['time']}:00Z"
                     
                     absolute_schedule.append(
-                        [absolute_time, [entry.get("co2", 800.0), entry.get("temperature", 22.0), entry.get("energy_cost", 0.15)]]
+                        [absolute_time, [entry.get("co2", 800.0), entry.get("temperature", 22.0), entry.get("energy_cost", 0.15), entry.get("occupancy_count", 1)]]
                     )
             
             # Move to next week

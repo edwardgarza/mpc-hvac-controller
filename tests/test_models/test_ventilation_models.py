@@ -401,7 +401,3 @@ class TestVentilationModelIntegration(unittest.TestCase):
         # HRV and ERV should have fan power
         self.assertEqual(hrv.fan_power_w(ventilation_rate), 200) 
         self.assertEqual(erv.fan_power_w(ventilation_rate), 150) 
-
-
-if __name__ == "__main__":
-    unittest.main() 

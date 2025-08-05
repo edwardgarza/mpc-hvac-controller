@@ -131,35 +131,35 @@
   "schedules": {
     "weekly_schedule": {
       "monday": [
-        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
-        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
-        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15, "occupancy_count": 1},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25, "occupancy_count": 2},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10, "occupancy_count": 2}
       ],
       "tuesday": [
-        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
-        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
-        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15, "occupancy_count": 1},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25, "occupancy_count": 2},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10, "occupancy_count": 2}
       ],
       "wednesday": [
-        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
-        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
-        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15, "occupancy_count": 1},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25, "occupancy_count": 2},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10, "occupancy_count": 2}
       ],
       "thursday": [
-        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
-        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
-        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15, "occupancy_count": 1},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25, "occupancy_count": 2},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10, "occupancy_count": 2}
       ],
       "friday": [
-        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15},
-        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25},
-        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10}
+        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15, "occupancy_count": 1},
+        {"time": "17:00", "co2": 900, "temperature": 24, "energy_cost": 0.25, "occupancy_count": 2},
+        {"time": "20:00", "co2": 900, "temperature": 22, "energy_cost": 0.10, "occupancy_count": 2}
       ],
       "saturday": [
-        {"time": "10:00", "co2": 1000, "temperature": 20, "energy_cost": 0.08}
+        {"time": "10:00", "co2": 1000, "temperature": 20, "energy_cost": 0.08, "occupancy_count": 2}
       ],
       "sunday": [
-        {"time": "12:00", "co2": 1000, "temperature": 20, "energy_cost": 0.08}
+        {"time": "12:00", "co2": 1000, "temperature": 20, "energy_cost": 0.08, "occupancy_count": 2}
       ]
     }
   }
