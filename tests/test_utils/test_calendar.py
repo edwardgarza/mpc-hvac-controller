@@ -6,7 +6,7 @@ Test calendar module
 import unittest
 from src.utils.calendar import Calendar
 from typing import Dict, List, Any
-from datetime import datetime, timedelta
+import datetime
 class TestCalendar(unittest.TestCase):
 
     def default_calendar(self) -> Dict[str, List[Dict[str, Any]]]:
@@ -52,7 +52,7 @@ class TestCalendar(unittest.TestCase):
     def test_get_relative_schedule(self):
         """Test that the relative schedule is correct"""
         # jan 1 2025 was a wednesday
-        start_date = datetime(2025, 1, 1, 0, 0, 0)
+        start_date = datetime.datetime(2025, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
         relative_schedule = self.calendar.get_relative_schedule(start_date)
         self.assertSequenceEqual(relative_schedule.interpolate_step(0), [800, 22, 0.15, 1])
         self.assertSequenceEqual(relative_schedule.interpolate_step(19), [900, 24, 0.25, 1])

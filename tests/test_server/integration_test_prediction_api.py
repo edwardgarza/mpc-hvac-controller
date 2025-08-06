@@ -4,12 +4,11 @@ Test script for the new prediction API endpoints
 """
 
 import datetime
+import dateutil.parser
 import requests
-import json
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import base64
-import io
 from typing import List
 
 # Server URL
@@ -33,9 +32,9 @@ def create_sample_weather_data(start_time: datetime) -> List:
 def test_plot_prediction_endpoint():
     """Test the /plot-prediction endpoint"""
     print("\nTesting /plot-prediction endpoint...")
-    start_time_str = "2024-01-15T09:30:00"
+    start_time_str = "2024-01-15T09:30:00Z"
     # First, we need to call the predict endpoint to set up the weather series
-    weather_data = create_sample_weather_data(datetime.datetime.fromisoformat(start_time_str))
+    weather_data = create_sample_weather_data(dateutil.parser.isoparse(start_time_str))
     
     predict_request_data = {
         "current_co2_ppm": 800.0,

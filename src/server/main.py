@@ -8,6 +8,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from datetime import datetime
+import dateutil.parser
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
@@ -230,7 +231,10 @@ def weather_data_to_timeseries(weather_data: List[WeatherData]) -> TimeSeries:
     return TimeSeries(time_points, weather_conditions)
 
 def weather_time_series_to_relative_time(weather_time_series: List[WeatherTimeSeries], start_time: datetime) -> TimeSeries:
-    time_points = [(datetime.fromisoformat(x.time) - start_time).total_seconds() / 3600.0 for x in weather_time_series]
+    try:
+        time_points = [(dateutil.parser.isoparse(x.time) - start_time).total_seconds() / 3600.0 for x in weather_time_series]
+    except TypeError as e:
+        print(e, 'time series datetime', weather_time_series[0].time, 'start time', start_time)
     weather_conditions = []
     for point in weather_time_series:
         solar = SolarIrradiation(
@@ -359,8 +363,8 @@ async def get_prediction(request: PredictionRequest):
         if request.current_time:
             # Use provided time of day directly
             print(request.current_time)
-            current_time = datetime.fromisoformat(request.current_time.replace('Z', ''))
-            print(datetime.fromisoformat(request.current_time))
+            current_time = dateutil.parser.isoparse(request.current_time)
+            print(dateutil.parser.isoparse(request.current_time))
         # Convert weather data to TimeSeries
         weather_series = weather_time_series_to_relative_time(request.weather_time_series, current_time)
         # Use custom horizon if provided

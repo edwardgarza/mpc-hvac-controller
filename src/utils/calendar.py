@@ -1,5 +1,6 @@
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
+import dateutil.parser
 
 class RelativeScheduleTimeSeries:
     def __init__(self, time_offsets_hours: List[float], values: List[List[float]]) -> None:
@@ -72,5 +73,5 @@ class Calendar:
     def get_relative_schedule(self, start_date_time: datetime, num_weeks: int = 2) -> RelativeScheduleTimeSeries:
         absolute_schedule = self.get_absolute_schedule(start_date_time, num_weeks)
         set_points = absolute_schedule
-        return RelativeScheduleTimeSeries([(datetime.fromisoformat(x[0].replace('Z', '')) - start_date_time).total_seconds() / 3600.0 for x in set_points], [x[1] for x in set_points])
+        return RelativeScheduleTimeSeries([(dateutil.parser.isoparse(x[0]) - start_date_time).total_seconds() / 3600.0 for x in set_points], [x[1] for x in set_points])
     
