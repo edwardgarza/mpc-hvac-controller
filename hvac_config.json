@@ -23,7 +23,7 @@
     },
     "walls": [
       {
-        "insulation_r": 13.0,
+        "insulation_r": 2.0
         "area_sq_m": 100.0,
         "orientation": 0.0,
         "studs": {
@@ -34,7 +34,7 @@
         "exterior_insulation_r": 0.0
       },
       {
-        "insulation_r": 13.0,
+        "insulation_r": 2.0,
         "area_sq_m": 100.0,
         "orientation": 0.0,
         "studs": {
@@ -45,7 +45,7 @@
         "exterior_insulation_r": 0.0
       },
       {
-        "insulation_r": 13.0,
+        "insulation_r": 2.0,
         "area_sq_m": 50.0,
         "orientation": 0.0,
         "studs": {
@@ -56,7 +56,7 @@
         "exterior_insulation_r": 0.0
       },
       {
-        "insulation_r": 13.0,
+        "insulation_r": 2.0,
         "area_sq_m": 50.0,
         "orientation": 0.0,
         "studs": {
@@ -69,21 +69,21 @@
     ],
     "windows": [
       {
-        "insulation_r": 4.0,
+        "insulation_r": 0.8,
         "area_sq_m": 20.0,
         "solar_heat_gain_coefficient": 0.7,
         "orientation": 0.0
       }
     ],
     "roof": {
-      "insulation_r": 60.0,
+      "insulation_r": 10.0,
       "area_sq_m": 50.0,
       "absorptivity": 0.85,
       "orientation": 0.0
     },
     "floor": {
       "type": "pier_and_beam",
-      "insulation_r": 30.0,
+      "insulation_r": 5.0,
       "area_sq_m": 50.0,
       "studs": {
         "width": 0.038,
@@ -103,7 +103,7 @@
     "ventilation": {
       "window_ventilations": [
         {
-          "max_airflow_m3_per_hour": 300.0,
+          "max_airflow_m3_per_hour": 80.0,
           "fan_power_w_m3_per_hour": 0.0
         }
       ],
@@ -117,7 +117,7 @@
       "natural_ventilations": [
         {
           "infiltration_rate_ach": 0.2,
-          "indoor_volume_m3": 100.0
+          "indoor_volume_m3": 700.0
         }
       ]
     }

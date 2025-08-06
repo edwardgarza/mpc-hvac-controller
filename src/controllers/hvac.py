@@ -7,13 +7,9 @@ import base64
 import datetime
 import io
 import matplotlib.pyplot as plt
-import matplotlib
 import numpy as np
 import scipy.optimize as optimize
 from typing import List, Tuple, Optional, Dict, Any
-import time
-from concurrent.futures import ThreadPoolExecutor
-import threading
 
 from src.models.building import BuildingModel
 from src.controllers.ventilation.models import RoomCO2Dynamics
@@ -41,7 +37,9 @@ class HvacController:
                  step_size_hours: float = 0.25,
                  optimization_method: str = "L-BFGS-B",
                  max_iterations: int = 500, 
-                 use_boolean_occupant_comfort: bool = True):
+                 use_boolean_occupant_comfort: bool = True,
+                 use_soft_boundary_condition: bool = True, 
+                 dynamically_lengthen_step_sizes: bool = True):
         """
         Initialize integrated HVAC controller
         
@@ -56,6 +54,8 @@ class HvacController:
             optimization_method: Optimization method
             max_iterations: Maximum optimization iterations
             use_boolean_occupant_comfort: if occupancy is 0 don't care about temperature or CO2 levels
+            use_soft_boundary_condition: have a higher cost for the the last point's to emulate a boundary condition
+            dynamically_lengthen_step_sizes: use larger step sizes further in the future
         """
         self.room_dynamics = room_dynamics
         self.building_model = building_model
@@ -67,8 +67,11 @@ class HvacController:
         self.optimization_method = optimization_method
         self.max_iterations = max_iterations
         self.use_boolean_occupant_comfort = use_boolean_occupant_comfort
+        self.use_soft_boundary_condition = use_soft_boundary_condition
+        self.dynamically_lengthen_step_sizes = dynamically_lengthen_step_sizes
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
+        self.steps, self.cumulative_steps = self.generate_time_steps(self.step_size_hours, self.horizon_hours,  self.dynamically_lengthen_step_sizes)
         self.n_steps = int(horizon_hours / step_size_hours)
         
         # Control dimensions
@@ -200,11 +203,11 @@ class HvacController:
         deviation = max(0, co2_ppm - target_co2)
         return self.co2_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset)
     
-    def energy_cost(self, ventilation_inputs: List[float], 
-                   hvac_input: float,
-                   indoor_temp_c: float, 
-                   outdoor_temp_c: float,
-                   time_hours: float = 0.0) -> float:
+    def energy_cost(
+            self, 
+            ventilation_inputs: List[float], 
+            hvac_input: float,
+            time_hours: float = 0.0) -> float:
         """
         Calculate total energy cost for ventilation and HVAC. Note that this is not the same as the energy cost of the building model.
 
@@ -213,8 +216,6 @@ class HvacController:
         Args:
             ventilation_inputs: Ventilation control inputs
             hvac_input: Heating/cooling control input (positive=heating, negative=cooling)
-            indoor_temp_c: Indoor temperature
-            outdoor_temp_c: Outdoor temperature
             time_hours: Current time for dynamic cost lookup
             
         Returns:
@@ -233,11 +234,13 @@ class HvacController:
         
         return total_cost_per_s
     
-    def cost_function(self, control_vector: np.ndarray,
-                     current_co2_ppm: float,
-                     current_temp_c: float,
-                     weather_series_hours: TimeSeries,
-                     start_time_hours_offset: float) -> float:
+    def cost_function(
+        self, 
+        control_vector: np.ndarray,
+        current_co2_ppm: float,
+        current_temp_c: float,
+        weather_series_hours: TimeSeries,
+        start_time_hours_offset: float) -> float:
         """
         Calculate total cost for integrated HVAC control
         
@@ -254,7 +257,6 @@ class HvacController:
         n_ventilation_vars = self.n_ventilation * self.n_steps
         ventilation_vector = control_vector[:n_ventilation_vars]
         hvac_vector = control_vector[n_ventilation_vars:]
-        
         # Reshape into sequences
         ventilation_sequences = []
         for i in range(self.n_ventilation):
@@ -289,13 +291,16 @@ class HvacController:
             outdoor_temp = weather.outdoor_temperature
             
             energy_cost = self.energy_cost(
-                ventilation_inputs, hvac_input,
-                temp_trajectory[i], outdoor_temp,
+                ventilation_inputs, 
+                hvac_input,
                 current_time_offset
             ) * self.step_size_seconds * self.energy_weight
             
-            total_cost += co2_cost + comfort_cost + energy_cost
-        
+            cost_of_step = co2_cost + comfort_cost + energy_cost
+            total_cost += cost_of_step
+        if self.use_soft_boundary_condition:
+            total_cost += cost_of_step * 5
+
         # Control smoothing penalty
         if self.u_prev is not None:
             for i in range(self.n_ventilation):
@@ -345,7 +350,7 @@ class HvacController:
             max_rate = self.room_dynamics.controllable_ventilations[i].max_airflow_m3_per_hour
             bounds.extend([(0.0, max_rate) for _ in range(self.n_steps)])
         # HVAC bounds (heating and cooling)
-        bounds.extend([(self.building_model.heating_model.output_range[0], self.building_model.heating_model.output_range[1]) for _ in range(self.n_steps)])
+        bounds.extend([self.building_model.heating_model.output_range for _ in range(self.n_steps)])
         
         # Optimize
         result = optimize.minimize(
@@ -359,7 +364,6 @@ class HvacController:
 
         if not result.success:
             print(f"Optimization failed: {result.message}")
-        
         # Extract optimal controls or best guess if optimization fails
         n_ventilation_vars = self.n_ventilation * self.n_steps
         ventilation_vector = result.x[:n_ventilation_vars]
@@ -474,7 +478,7 @@ class HvacController:
                         current_co2_ppm: float,
                         current_temp_c: float,
                         weather_series_hours: TimeSeries,
-                        start_time_hours: float = 0.0) -> Tuple[List[float], List[float], List[float], List[float], float, Dict[str, Any]]:
+                        start_time: datetime = 0.0) -> Tuple[List[float], List[float], List[float], List[float], float, Dict[str, Any]]:
         """
         Get detailed control information including predicted trajectories
         
@@ -487,7 +491,7 @@ class HvacController:
             Tuple of (ventilation_controls, hvac_controls, co2_trajectory, temp_trajectory, total_cost, additional_info)
         """
         ventilation_controls, hvac_controls, total_cost = self.optimize_controls(
-            current_co2_ppm, current_temp_c, weather_series_hours, start_time_hours
+            current_co2_ppm, current_temp_c, weather_series_hours, start_time
         )
         
         # Predict full trajectories
@@ -497,17 +501,48 @@ class HvacController:
         co2_trajectory, temp_trajectory = self.predict_trajectories(
             current_co2_ppm, current_temp_c,
             [ventilation_sequences, [hvac_sequence]],
-            weather_series_hours, start_time_hours
+            weather_series_hours, 0
         )
+
+        total_energy_cost = 0
+        for i in range(self.n_steps):
+            # CO2 cost
+            current_time_offset = i * self.step_size_hours
+            
+            # Energy cost
+            ventilation_inputs = [ventilation_sequences[j][i] for j in range(self.n_ventilation)]
+            hvac_input = hvac_sequence[i]
+            
+            total_energy_cost += self.energy_cost(
+                ventilation_inputs, 
+                hvac_input,
+                current_time_offset
+            ) * self.step_size_seconds
+            print(total_energy_cost, hvac_input)
+
         
-        additional_info = {
-            'final_co2': co2_trajectory[-1],
-            'final_temp': temp_trajectory[-1],
-            'max_co2': max(co2_trajectory),
-            'min_temp': min(temp_trajectory),
-            'max_temp': max(temp_trajectory),
-            'hvac_mode': 'heating' if hvac_controls[0] >= 0 else 'cooling',
-            'hvac_power': abs(hvac_controls[0])
+        return {
+            "ventillation_controls": ventilation_controls,
+            "hvac_controls": hvac_controls,
+            "co2_trajectory": co2_trajectory,
+            "temp_trajectory": temp_trajectory,
+            "total_energy_cost_dollars": total_energy_cost,
         }
-        
-        return ventilation_controls, hvac_controls, co2_trajectory, temp_trajectory, total_cost, additional_info 
+
+    def generate_time_steps(self, min_step_size_hours: float, horizon_hours: float, dynamically_lengthen_step_sizes: bool, double_size_every_x_points: int = 4):
+        total_times = []
+        steps = []
+        mult = 1
+        next_value = min_step_size_hours
+        while next_value < horizon_hours:
+            if not steps:
+                total_times.append(min_step_size_hours)
+                steps.append(min_step_size_hours)
+            else:            
+                steps.append(min_step_size_hours * mult)
+                total_times.append(next_value)
+            if dynamically_lengthen_step_sizes and len(steps) % double_size_every_x_points == 0:
+                mult *= 2
+            next_value = total_times[-1] + min_step_size_hours * mult
+
+        return steps, total_times

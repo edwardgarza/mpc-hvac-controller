@@ -152,7 +152,7 @@ def run_hvac_example():
     
     print(f"\nRunning step-by-step simulation for {simulation_steps} steps ({simulation_hours} hours)...")
     # pick random starting time
-    start_time = dateutil.parser.isoparse("2024-01-15T09:30:00")
+    start_time = dateutil.parser.isoparse("2024-01-15T09:30:00Z")
     for step in range(simulation_steps):
         # Current simulation time
         current_time = start_time + datetime.timedelta(hours = step * controller.step_size_hours)

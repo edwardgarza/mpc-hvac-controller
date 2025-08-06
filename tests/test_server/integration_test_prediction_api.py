@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for the new prediction API endpoints
+Test script for running the prediction API endpoints. Must spin up a local server first
 """
 
 import datetime
