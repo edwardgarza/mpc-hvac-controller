@@ -23,7 +23,7 @@
     },
     "walls": [
       {
-        "insulation_r": 2.0
+        "insulation_r": 2.0,
         "area_sq_m": 100.0,
         "orientation": 0.0,
         "studs": {
