@@ -44,10 +44,12 @@ class TestWallModel(unittest.TestCase):
         """Create a simple building model"""
         
         # Create building components
-        wall = WallModel(Studs(1.5, 3.5, 16), 13, 100, Orientation())
-        window = WindowModel(4, 20, 0.7)  # 20 m² of windows
-        roof = RoofModel(60, 50, Orientation(), 0.85)  # 50 m² roof
-        floor = PierAndBeam(Studs(1.5, 5.5, 16), 30, 50, Orientation())  # 50 m² floor
+        studs = Studs(0.038, 0.089, 0.406)
+        wall = WallModel(studs, 0, 1, Orientation())
+        window = WindowModel(0.7, 1, 0.7)  
+
+        roof = RoofModel(10, 50, Orientation(), 0.85)  # 50 m² roof
+        floor = PierAndBeam(studs, 5, 50, Orientation())  # 50 m² floor
         
         # Create heating model
         heating_model = HeatPumpThermalDeviceModel(hspf=9.0, output_range=(-10000, 10000))
@@ -70,19 +72,18 @@ class TestWallModel(unittest.TestCase):
         weather_conditions = []
         
         for hour in time_points:
-            # Simple sinusoidal temperature variation
-            outdoor_temp = 20 + 5 * np.sin(2 * np.pi * hour / 24)
+            outdoor_temp = 15 
             
             # Create weather conditions
             solar = SolarIrradiation(
-                altitude_rad=0.5,  # Simple fixed values
+                altitude_rad=0,  # Simple fixed values
                 azimuth_rad=0.0,
-                intensity_w=800 * max(0, np.sin(2 * np.pi * hour / 24))
+                intensity_w=0
             )
             
             weather = WeatherConditions(
                 irradiation=solar,
-                wind_speed=5.0,
+                wind_speed=0.0,
                 outdoor_temperature=outdoor_temp,
                 ground_temperature=12.0
             )
@@ -99,15 +100,15 @@ class TestWallModel(unittest.TestCase):
         room_dynamics=room_dynamics,
         building_model=building_model,
         horizon_hours=12.0,
-        co2_weight=0.1,
-        energy_weight=3000.0,
-        comfort_weight=0.001,
+        co2_weight=0.25,
+        energy_weight=100.0,
+        comfort_weight=0.1,
         step_size_hours=0.5,
         optimization_method="SLSQP",
         max_iterations=500,
     )
     default_controller.set_saved_schedule({"monday": [
-        {"time": "09:00", "co2": 800, "temperature": 22, "energy_cost": 0.15, "occupancy_count": 1}]})
+        {"time": "09:00", "co2": 800, "temperature": 21, "energy_cost": 0.15, "occupancy_count": 1}]})
 
 
     def test_step_sizes_static(self):
@@ -125,5 +126,9 @@ class TestWallModel(unittest.TestCase):
 
     def test_get_control_info_no_exception(self):
         start_time = dateutil.parser.isoparse("2024-01-15T09:30:00Z")
-        control_info = self.default_controller.get_control_info(900, 20, self.create_weather_timeseries(), start_time)
+        control_info = self.default_controller.get_control_info(1200, 20, self.create_weather_timeseries(), start_time)
         print(control_info)
+        self.assertGreater(control_info['total_energy_cost_dollars'], 0)
+
+        # the total energy cost should be slightly higher than the hvac usage, which is $0.15/kwh (and the step size is 0.5 hours)
+        self.assertGreater(control_info['total_energy_cost_dollars'], sum([abs(x) for x in control_info['hvac_controls']]) * 0.15 / 1000 * 0.5)

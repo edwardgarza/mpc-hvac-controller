@@ -29,6 +29,16 @@ def test_config():
     response = requests.get(f"{BASE_URL}/config")
     print(f"Current config: {response.json()}")
 
+    original_schedule = response.json()['schedules']['weekly_schedule']
+    only_monday_schedule = {'monday': original_schedule['monday']}
+    new_json = response.json()
+    new_json['schedules']['weekly_schedule'] = only_monday_schedule
+    requests.post(f"{BASE_URL}/config", data=json.dumps(new_json))
+    time.sleep(10)
+    updated_response = requests.get(f"{BASE_URL}/config")
+    assert updated_response.json() == new_json
+    response = requests.post(f"{BASE_URL}/config", data=response.text)
+    print('response to setting new config', response.ok)
 
 def create_sample_weather_forecast() -> List[dict]:
     """Create a sample weather forecast"""
@@ -92,10 +102,6 @@ def main():
     """Run all tests"""
     print("HVAC Controller API Test Suite")
     print("=" * 40)
-    
-    # Wait for server to start
-    print("Waiting for server to be ready...")
-    time.sleep(2)
     
     try:
         test_health()

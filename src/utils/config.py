@@ -233,14 +233,14 @@ class Config:
         default_building = BuildingConfig(
             room=RoomConfig(volume_m3=100.0, outdoor_co2_ppm=400.0),
             walls=[
-                WallConfig(insulation_r=13.0, area_sq_m=100.0, orientation=0.0),
-                WallConfig(insulation_r=13.0, area_sq_m=100.0, orientation=0.0),
-                WallConfig(insulation_r=13.0, area_sq_m=50.0, orientation=0.0),
-                WallConfig(insulation_r=13.0, area_sq_m=50.0, orientation=0.0)
+                WallConfig(insulation_r=2.0, area_sq_m=100.0, orientation=0.0),
+                WallConfig(insulation_r=2.0, area_sq_m=100.0, orientation=0.0),
+                WallConfig(insulation_r=2.0, area_sq_m=50.0, orientation=0.0),
+                WallConfig(insulation_r=2.0, area_sq_m=50.0, orientation=0.0)
             ],
-            windows=[WindowConfig(insulation_r=4.0, area_sq_m=20.0, orientation=0.0)],
-            roof=RoofConfig(insulation_r=60.0, area_sq_m=50.0, orientation=0.0),
-            floor=FloorConfig(insulation_r=30.0, area_sq_m=50.0),
+            windows=[WindowConfig(insulation_r=0.8, area_sq_m=20.0, orientation=0.0)],
+            roof=RoofConfig(insulation_r=10.0, area_sq_m=50.0, orientation=0.0),
+            floor=FloorConfig(insulation_r=5.0, area_sq_m=50.0),
             heating_system=HeatingSystemConfig()
         )
         

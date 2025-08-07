@@ -290,8 +290,7 @@ async def get_config():
     """Get current configuration"""
     try:
         # Return the current config without reloading
-        if config.full_config is None:
-            config.load_config("hvac_config.json")
+        config.load_config("hvac_config.json")
         return config.full_config.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
