@@ -417,9 +417,10 @@ async def get_prediction(request: PredictionRequest):
             co2_trajectory, temperature_trajectory = controller.predict_trajectories(
                 request.current_co2_ppm,
                 request.current_temp_c,
-                [ventilation_sequences, [hvac_sequence]],
+                ventilation_sequences, 
+                hvac_sequence,
                 weather_series,
-                current_time
+                0
             )
         
         # Create time horizon
