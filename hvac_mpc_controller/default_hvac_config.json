@@ -1,0 +1,268 @@
+{
+    "controller": {
+      "horizon_hours": 24.0,
+      "co2_weight": 0.001,
+      "energy_weight": 100.0,
+      "comfort_weight": 0.1,
+      "step_size_hours": 0.5,
+      "optimization_method": "SLSQP",
+      "max_iterations": 500
+    },
+    "building": {
+      "heat_capacity": 1000000.0,
+      "room": {
+        "volume_m3": 700.0,
+        "outdoor_co2_ppm": 400.0,
+        "co2_sources": [
+          {
+            "type": "occupant",
+            "co2_production_rate_m3_per_hour": 0.01,
+            "count": 1
+          }
+        ]
+      },
+      "walls": [
+        {
+          "insulation_r": 2.0,
+          "area_sq_m": 100.0,
+          "orientation": 0.0,
+          "studs": {
+            "width": 0.038,
+            "depth": 0.089,
+            "spacing": 0.406
+          },
+          "exterior_insulation_r": 0.0
+        },
+        {
+          "insulation_r": 2.0,
+          "area_sq_m": 100.0,
+          "orientation": 0.0,
+          "studs": {
+            "width": 0.038,
+            "depth": 0.089,
+            "spacing": 0.406
+          },
+          "exterior_insulation_r": 0.0
+        },
+        {
+          "insulation_r": 2.0,
+          "area_sq_m": 50.0,
+          "orientation": 0.0,
+          "studs": {
+            "width": 0.038,
+            "depth": 0.089,
+            "spacing": 0.406
+          },
+          "exterior_insulation_r": 0.0
+        },
+        {
+          "insulation_r": 2.0,
+          "area_sq_m": 50.0,
+          "orientation": 0.0,
+          "studs": {
+            "width": 0.038,
+            "depth": 0.089,
+            "spacing": 0.406
+          },
+          "exterior_insulation_r": 0.0
+        }
+      ],
+      "windows": [
+        {
+          "insulation_r": 0.8,
+          "area_sq_m": 20.0,
+          "solar_heat_gain_coefficient": 0.7,
+          "orientation": 0.0
+        }
+      ],
+      "roof": {
+        "insulation_r": 10.0,
+        "area_sq_m": 50.0,
+        "absorptivity": 0.85,
+        "orientation": 0.0
+      },
+      "floor": {
+        "type": "pier_and_beam",
+        "insulation_r": 5.0,
+        "area_sq_m": 50.0,
+        "studs": {
+          "width": 0.038,
+          "depth": 0.089,
+          "spacing": 0.406
+        },
+        "exterior_insulation_r": 0.0
+      },
+      "heating_system": {
+        "type": "heat_pump",
+        "output_range_min": -10000.0,
+        "output_range_max": 10000.0,
+        "hspf": 9.0,
+        "outdoor_offset": 3.0,
+        "indoor_offset": 5.0
+      },
+      "ventilation": {
+        "window_ventilations": [
+          {
+            "max_airflow_m3_per_hour": 80.0,
+            "fan_power_w_m3_per_hour": 0.0
+          }
+        ],
+        "ervs": [
+          {
+            "max_airflow_m3_per_hour": 200.0,
+            "heat_recovery_efficiency": 0.7,
+            "fan_power_w_m3_per_hour": 0.3
+          }
+        ],
+        "natural_ventilations": [
+          {
+            "infiltration_rate_ach": 0.01,
+            "indoor_volume_m3": 700.0
+          }
+        ]
+      }
+    },
+    "server": {
+      "host": "0.0.0.0",
+      "port": 8000,
+      "reload": false,
+      "log_level": "info"
+    },
+    "schedules": {
+      "weekly_schedule": {
+        "monday": [
+          {
+            "time": "09:00",
+            "co2": 800,
+            "temperature": 21,
+            "energy_cost": 0.15,
+            "occupancy_count": 1
+          },
+          {
+            "time": "17:00",
+            "co2": 900,
+            "temperature": 21,
+            "energy_cost": 0.25,
+            "occupancy_count": 2
+          },
+          {
+            "time": "20:00",
+            "co2": 900,
+            "temperature": 20,
+            "energy_cost": 0.1,
+            "occupancy_count": 2
+          }
+        ],
+        "tuesday": [
+          {
+            "time": "09:00",
+            "co2": 800,
+            "temperature": 21,
+            "energy_cost": 0.15,
+            "occupancy_count": 1
+          },
+          {
+            "time": "17:00",
+            "co2": 900,
+            "temperature": 21,
+            "energy_cost": 0.25,
+            "occupancy_count": 2
+          },
+          {
+            "time": "20:00",
+            "co2": 900,
+            "temperature": 20,
+            "energy_cost": 0.1,
+            "occupancy_count": 2
+          }
+        ],
+        "wednesday": [
+          {
+            "time": "09:00",
+            "co2": 800,
+            "temperature": 21,
+            "energy_cost": 0.15,
+            "occupancy_count": 1
+          },
+          {
+            "time": "17:00",
+            "co2": 900,
+            "temperature": 21,
+            "energy_cost": 0.25,
+            "occupancy_count": 2
+          },
+          {
+            "time": "20:00",
+            "co2": 900,
+            "temperature": 20,
+            "energy_cost": 0.1,
+            "occupancy_count": 2
+          }
+        ],
+        "thursday": [
+          {
+            "time": "09:00",
+            "co2": 800,
+            "temperature": 21,
+            "energy_cost": 0.15,
+            "occupancy_count": 1
+          },
+          {
+            "time": "17:00",
+            "co2": 900,
+            "temperature": 21,
+            "energy_cost": 0.25,
+            "occupancy_count": 2
+          },
+          {
+            "time": "20:00",
+            "co2": 900,
+            "temperature": 20,
+            "energy_cost": 0.1,
+            "occupancy_count": 2
+          }
+        ],
+        "friday": [
+          {
+            "time": "09:00",
+            "co2": 800,
+            "temperature": 21,
+            "energy_cost": 0.15,
+            "occupancy_count": 1
+          },
+          {
+            "time": "17:00",
+            "co2": 900,
+            "temperature": 21,
+            "energy_cost": 0.25,
+            "occupancy_count": 2
+          },
+          {
+            "time": "20:00",
+            "co2": 900,
+            "temperature": 20,
+            "energy_cost": 0.1,
+            "occupancy_count": 2
+          }
+        ],
+        "saturday": [
+          {
+            "time": "10:00",
+            "co2": 1000,
+            "temperature": 20,
+            "energy_cost": 0.08,
+            "occupancy_count": 2
+          }
+        ],
+        "sunday": [
+          {
+            "time": "12:00",
+            "co2": 1000,
+            "temperature": 20,
+            "energy_cost": 0.08,
+            "occupancy_count": 2
+          }
+        ]
+      }
+    }
+  }

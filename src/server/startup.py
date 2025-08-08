@@ -6,6 +6,7 @@ Start the HVAC Controller API server
 import argparse
 import os
 import sys
+import shutil
 from pathlib import Path
 
 # Add the project root to Python path
@@ -20,30 +21,28 @@ def main():
     parser = argparse.ArgumentParser(description="Start HVAC Controller API Server")
     parser.add_argument("--config-file", default="hvac_config.json", 
                        help="Configuration file path (default: hvac_config.json)")
-    parser.add_argument("--create-config", action="store_true",
-                       help="Create default configuration file and exit")
     parser.add_argument("--host", default=os.getenv("HVAC_HOST", "0.0.0.0"), help="Server host")
     parser.add_argument("--port", type=int, default=int(os.getenv("HVAC_PORT", "8000")), help="Server port")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
     
     args = parser.parse_args()
     
-    # Create config file if requested
-    if args.create_config:
-        create_default_config_file(args.config_file)
-        print(f"Created default configuration file: {args.config_file}")
-        print("Edit this file to customize your building and controller settings.")
-        return
-    
     # Check if config file exists
     config_path = Path(args.config_file)
     if not config_path.exists():
         print(f"Configuration file {args.config_file} not found.")
-        print("Creating default configuration file...")
-        create_default_config_file(args.config_file)
-        print(f"Created {args.config_file}. Edit it to customize your settings.")
-        print("Run again to start the server.")
-        return
+        
+        # Try to copy from default config first
+        default_config_path = Path("hvac_mpc_controller/default_hvac_config.json")
+        if default_config_path.exists():
+            print(f"Copying default config from {default_config_path} to {args.config_file}")
+            shutil.copy2(default_config_path, args.config_file)
+            print(f"Created {args.config_file} from default template.")
+            print("Edit this file to customize your settings.")
+        else:
+            # Fallback to creating default config
+            print("Default config file not found, something went wrong and startup won't continue")
+            return
     
     # Load configuration
     try:
