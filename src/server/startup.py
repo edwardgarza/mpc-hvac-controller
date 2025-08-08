@@ -20,8 +20,8 @@ def main():
     """Start the server with configuration"""
     parser = argparse.ArgumentParser(description="Start HVAC Controller API Server")
     
-    parser.add_argument("--config-file", default="./data/hvac_config.json", 
-                       help="Configuration file path (default: ./data/hvac_config.json)")
+    parser.add_argument("--config-file", default="/data/hvac_config.json", 
+                       help="Configuration file path (default: /data/hvac_config.json)")
     parser.add_argument("--host", default=os.getenv("HVAC_HOST", "0.0.0.0"), help="Server host")
     parser.add_argument("--port", type=int, default=int(os.getenv("HVAC_PORT", "8000")), help="Server port")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
