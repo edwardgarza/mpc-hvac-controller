@@ -277,17 +277,17 @@ class Config:
 config = Config()
 
 
-def get_controller_config() -> ControllerConfig:
+def get_controller_config(path: str) -> ControllerConfig:
     """Get the current controller configuration"""
     if config.full_config is None:
-        config.load_config("./data/hvac_config.json")
+        config.load_config(path)
     return config.full_config.controller
 
 
-def get_building_config() -> BuildingConfig:
+def get_building_config(path: str) -> BuildingConfig:
     """Get the current building configuration"""
     if config.full_config is None:
-        config.load_config("./data/hvac_config.json")
+        config.load_config(path)
     return config.full_config.building
 
 

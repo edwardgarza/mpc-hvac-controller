@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from utils.config import config, create_default_config_file
+from utils.config import config
 
 
 def main():
@@ -70,9 +70,9 @@ def main():
     try:
         import uvicorn
         from server.main import app
-        
         print(f"Starting server on {server_host}:{server_port}")
         print(f"API documentation available at: http://localhost:{server_port}/docs")
+        app.state.config_file_path = args.config_file
         
         uvicorn.run(
             app,

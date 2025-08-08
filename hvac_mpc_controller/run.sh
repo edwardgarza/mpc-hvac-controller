@@ -8,4 +8,4 @@ ls -la
 
 # Start the server using the existing start_server.py
 echo "Starting server on 0.0.0.0:8000"
-exec python3 start_server.py --host 0.0.0.0 --port 8000 
+exec python3 start_server.py --host 0.0.0.0 --port 8000 --config-file /data/hvac_config.json

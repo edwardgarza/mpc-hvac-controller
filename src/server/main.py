@@ -154,8 +154,8 @@ def initialize_controller():
     global controller, building_model, room_dynamics
     
     # Get configuration
-    controller_config = get_controller_config()
-    building_config = get_building_config()
+    controller_config = get_controller_config(app.state.config_file_path)
+    building_config = get_building_config(app.state.config_file_path)
     full_config = config.full_config
     
     # Create building model from configuration
@@ -292,8 +292,7 @@ async def get_config():
     try:
         # Return the current config without reloading
         # Use the same config path as the server startup
-        config_path = "./data/hvac_config.json" 
-        config.load_config(config_path)
+        config.load_config(app.state.config_file_path)
         return config.full_config.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
@@ -306,8 +305,7 @@ async def save_config_endpoint(config_data: dict):
         full_config = FullConfig(**config_data)
         
         # Save to file using the same config path as the server startup
-        config_path = "./data/hvac_config.json"
-        config.save_to_file(full_config, config_path)
+        config.save_to_file(full_config, app.state.config_file_path)
         
         # Reinitialize controller with new config
         global controller
@@ -493,8 +491,8 @@ async def get_model_info():
     
     try:
         # Get the complete configuration
-        controller_config = get_controller_config()
-        building_config = get_building_config()
+        controller_config = get_controller_config(app.state.config_file_path)
+        building_config = get_building_config(app.state.config_file_path)
         
         # Return the complete configuration
         return {
@@ -514,29 +512,3 @@ async def get_model_info():
         print(tb_str)
         raise HTTPException(status_code=500, detail=f"Failed to get model info: {tb_str}")
 
-
-def main():
-    """Run the server"""
-    parser = argparse.ArgumentParser(description="HVAC Controller API Server")
-    parser.add_argument("--host", default="0.0.0.0", help="Server host")
-    parser.add_argument("--port", type=int, default=8000, help="Server port")
-    parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
-    parser.add_argument("--config-file", help="Configuration file path")
-    
-    args = parser.parse_args()
-    
-    # Load configuration if specified
-    if args.config_file:
-        config.load_config(args.config_file)
-    
-    # Run server
-    uvicorn.run(
-        "server:app",
-        host=args.host,
-        port=args.port,
-        reload=args.reload
-    )
-
-
-if __name__ == "__main__":
-    main() 
