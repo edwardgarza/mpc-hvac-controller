@@ -19,8 +19,9 @@ from utils.config import config, create_default_config_file
 def main():
     """Start the server with configuration"""
     parser = argparse.ArgumentParser(description="Start HVAC Controller API Server")
-    parser.add_argument("--config-file", default="hvac_config.json", 
-                       help="Configuration file path (default: hvac_config.json)")
+    
+    parser.add_argument("--config-file", default="./config/hvac_config.json", 
+                       help="Configuration file path (default: ./config/hvac_config.json)")
     parser.add_argument("--host", default=os.getenv("HVAC_HOST", "0.0.0.0"), help="Server host")
     parser.add_argument("--port", type=int, default=int(os.getenv("HVAC_PORT", "8000")), help="Server port")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
@@ -32,17 +33,19 @@ def main():
     if not config_path.exists():
         print(f"Configuration file {args.config_file} not found.")
         
-        # Try to copy from default config first
+        # Create config directory if needed
+        config_dir = config_path.parent
+        if not config_dir.exists():
+            config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Copy from default config
         default_config_path = Path("hvac_mpc_controller/default_hvac_config.json")
         if default_config_path.exists():
-            print(f"Copying default config from {default_config_path} to {args.config_file}")
             shutil.copy2(default_config_path, args.config_file)
             print(f"Created {args.config_file} from default template.")
-            print("Edit this file to customize your settings.")
         else:
-            # Fallback to creating default config
-            print("Default config file not found, something went wrong and startup won't continue")
-            return
+            create_default_config_file(str(args.config_file))
+            print(f"Created {args.config_file} with basic configuration.")
     
     # Load configuration
     try:

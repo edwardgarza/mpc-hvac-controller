@@ -280,14 +280,14 @@ config = Config()
 def get_controller_config() -> ControllerConfig:
     """Get the current controller configuration"""
     if config.full_config is None:
-        config.load_config("hvac_config.json")
+        config.load_config("./config/hvac_config.json")
     return config.full_config.controller
 
 
 def get_building_config() -> BuildingConfig:
     """Get the current building configuration"""
     if config.full_config is None:
-        config.load_config("hvac_config.json")
+        config.load_config("./config/hvac_config.json")
     return config.full_config.building
 
 
@@ -317,14 +317,15 @@ if __name__ == "__main__":
     create_default_config_file()
     
     # Load config
-    full_config = config.load_config("hvac_config.json")
+    config_path = "/config/hvac_config.json"
+    full_config = config.load_config(config_path)
     print(f"Loaded config: {full_config.model_dump()}")
     
     print("\nTo use a custom configuration:")
-    print("1. Edit hvac_config.json with your preferred settings")
-    print("2. Start the server with: python start_server.py --config-file hvac_config.json")
+    print("1. Edit the config file with your preferred settings")
+    print("2. Start the server with: python start_server.py --config-file /config/hvac_config.json")
     
-    print("\nExample configuration file (hvac_config.json):")
+    print("\nExample configuration file:")
     example_config = {
         "controller": {
             "horizon_hours": 24.0,

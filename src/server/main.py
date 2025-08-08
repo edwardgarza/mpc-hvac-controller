@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
@@ -290,7 +291,8 @@ async def get_config():
     """Get current configuration"""
     try:
         # Return the current config without reloading
-        config.load_config("hvac_config.json")
+        # Use the same config path as the server startup
+        config.load_config("./config/hvac_config.json")
         return config.full_config.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
@@ -302,8 +304,8 @@ async def save_config_endpoint(config_data: dict):
         # Validate the config data
         full_config = FullConfig(**config_data)
         
-        # Save to file
-        config.save_to_file(full_config, "hvac_config.json")
+        # Save to file using the same config path as the server startup
+        config.save_to_file(full_config, "./config/hvac_config.json")
         
         # Reinitialize controller with new config
         global controller

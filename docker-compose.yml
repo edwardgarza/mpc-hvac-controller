@@ -6,8 +6,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount config file for easy updates
-      - ./hvac_config.json:/app/hvac_config.json
+      # Mount config directory for easy updates
+      - ./config:/config
       # Mount logs directory
       - ./logs:/app/logs
     environment:

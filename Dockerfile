@@ -24,7 +24,7 @@ COPY src/ ./src/
 COPY static/ ./static/
 COPY templates/ ./templates/
 COPY start_server.py ./
-COPY hvac_config.json ./
+COPY hvac_mpc_controller/ ./hvac_mpc_controller/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app

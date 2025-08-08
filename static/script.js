@@ -178,7 +178,7 @@ function downloadConfig() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'hvac_config.json';
+        a.download = './config/hvac_config.json';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
