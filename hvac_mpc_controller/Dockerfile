@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     cron \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy our updated run script that includes cron
+# Copy our updated run script
 COPY run.sh /
 RUN chmod a+x /run.sh
 

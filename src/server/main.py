@@ -292,7 +292,8 @@ async def get_config():
     try:
         # Return the current config without reloading
         # Use the same config path as the server startup
-        config.load_config("./config/hvac_config.json")
+        config_path = "./data/hvac_config.json" 
+        config.load_config(config_path)
         return config.full_config.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
@@ -305,7 +306,8 @@ async def save_config_endpoint(config_data: dict):
         full_config = FullConfig(**config_data)
         
         # Save to file using the same config path as the server startup
-        config.save_to_file(full_config, "./config/hvac_config.json")
+        config_path = "./data/hvac_config.json"
+        config.save_to_file(full_config, config_path)
         
         # Reinitialize controller with new config
         global controller

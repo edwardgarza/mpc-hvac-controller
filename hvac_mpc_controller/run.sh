@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting HVAC Controller add-on with cron automation"
+echo "Starting HVAC Controller add-on"
 
 # Debug: check what files are available
 echo "Files in current directory:"

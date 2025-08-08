@@ -20,8 +20,8 @@ def main():
     """Start the server with configuration"""
     parser = argparse.ArgumentParser(description="Start HVAC Controller API Server")
     
-    parser.add_argument("--config-file", default="./config/hvac_config.json", 
-                       help="Configuration file path (default: ./config/hvac_config.json)")
+    parser.add_argument("--config-file", default="./data/hvac_config.json", 
+                       help="Configuration file path (default: ./data/hvac_config.json)")
     parser.add_argument("--host", default=os.getenv("HVAC_HOST", "0.0.0.0"), help="Server host")
     parser.add_argument("--port", type=int, default=int(os.getenv("HVAC_PORT", "8000")), help="Server port")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
@@ -44,8 +44,9 @@ def main():
             shutil.copy2(default_config_path, args.config_file)
             print(f"Created {args.config_file} from default template.")
         else:
-            create_default_config_file(str(args.config_file))
-            print(f"Created {args.config_file} with basic configuration.")
+            # Fallback to creating default config
+            print("Default config file not found, something went wrong and startup won't continue")
+            return
     
     # Load configuration
     try:
