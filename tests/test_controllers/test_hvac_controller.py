@@ -3,8 +3,8 @@ import numpy as np
 import unittest
 from src.controllers.hvac import HvacController
 from src.controllers.ventilation.models import (
-    RoomCO2Dynamics, WindowVentilationModel, HRVModel, 
-    ERVModel, NaturalVentilationModel, CO2Source
+    RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
+    ERVVentilationModel, NaturalVentilationModel, CO2Source
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
@@ -15,14 +15,14 @@ from src.utils.timeseries import TimeSeries
 
 
 
-class TestWallModel(unittest.TestCase):
+class TestHVACController(unittest.TestCase):
 
     def create_example_room():
         """Create a simple room setup for testing"""
         
         # Create ventilation models
         window_vent = WindowVentilationModel()
-        erv_vent = ERVModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
+        erv_vent = ERVVentilationModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
         natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.2)
         
         # Create CO2 sources (occupants)
@@ -131,4 +131,7 @@ class TestWallModel(unittest.TestCase):
         self.assertGreater(control_info['total_energy_cost_dollars'], 0)
 
         # the total energy cost should be slightly higher than the hvac usage, which is $0.15/kwh (and the step size is 0.5 hours)
-        self.assertGreater(control_info['total_energy_cost_dollars'], sum([abs(x) for x in control_info['hvac_controls']]) * 0.15 / 1000 * 0.5)
+        hvac_energy_used = 0
+        for hvac_input in control_info['hvac_controls']:
+            hvac_energy_used += sum([abs(x) for x in hvac_input])
+        self.assertGreater(control_info['total_energy_cost_dollars'], hvac_energy_used * 0.15 / 1000 * 0.5)

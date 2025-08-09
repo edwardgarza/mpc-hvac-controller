@@ -57,12 +57,21 @@ async function apiCall(method, endpoint, data = null) {
 // Dashboard Functions
 async function refreshStatus() {
     try {
+        const result = await apiCall('GET', '/current-control');
+        result.JSON
         // For now, we'll use mock data since we don't have real sensor integration
         // In a real implementation, this would call your sensor endpoints
-        document.getElementById('co2-level').textContent = '800';
-        document.getElementById('temp-level').textContent = '22.5';
-        document.getElementById('ventilation-status').textContent = 'Active';
-        document.getElementById('hvac-status').textContent = 'Heating';
+        document.getElementById('co2-level').textContent = result.co2_level.toFixed(1);
+        document.getElementById('temp-level').textContent = result.indoor_temperature.toFixed(1);
+        const ventString = Object.entries(result.ventilation_controls)
+        .map(([type, rate]) => `${type}: ${rate.toFixed(0)} m³/hr`)
+        .join('<br>');
+        document.getElementById('ventilation-status').innerHTML = ventString;
+        const hvacString = Object.entries(result.hvac_controls)
+        .map(([type, rate]) => `${type}: ${(rate / 1000).toFixed(1)} kW`)
+        .join('<br>');
+    
+        document.getElementById('hvac-status').innerHTML = hvacString;
     } catch (error) {
         console.error('Failed to refresh status:', error);
     }

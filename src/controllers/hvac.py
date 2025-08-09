@@ -86,7 +86,7 @@ class HvacController:
         # Saved schedule from config
         self.saved_schedule = None
         self.set_points: RelativeScheduleTimeSeries = None 
-        self.start_time: datetime = None 
+        self._start_time: datetime = None 
     
     def set_saved_schedule(self, schedule):
         """Set the saved schedule from config"""
@@ -126,7 +126,7 @@ class HvacController:
         for i in range(self.n_steps):
             # Extract control inputs for this time step
             ventilation_inputs = [ventilation_controls[j][i] for j in range(self.n_ventilation)]
-            hvac_input = hvac_controls[i]  # hvac_controls is a list of lists
+            hvac_inputs = [hvac_controls[j][i] for j in range(self.n_hvac)]
             
             # Get weather at current prediction time
             # current_time_offset = i * self.step_size_hours + start_time_hours_offset
@@ -157,7 +157,7 @@ class HvacController:
 
             # Use building model for temperature change (includes HVAC and thermal transfer)
             temp_change_per_s = self.building_model.temperature_change_per_s(
-                current_temp, weather, hvac_input, ventilation_heat_load * 1000
+                current_temp, weather, hvac_inputs[0], ventilation_heat_load * 1000
             )
 
             temp_change = temp_change_per_s * self.step_size_seconds
@@ -257,23 +257,14 @@ class HvacController:
         """
         # Reshape control vector
         n_ventilation_vars = self.n_ventilation * self.n_steps
-        ventilation_vector = control_vector[:n_ventilation_vars]
-        hvac_vector = control_vector[n_ventilation_vars:]
-        # Reshape into sequences
-        ventilation_sequences = []
-        for i in range(self.n_ventilation):
-            start_idx = i * self.n_steps
-            end_idx = (i + 1) * self.n_steps
-            ventilation_sequences.append(ventilation_vector[start_idx:end_idx].tolist())
-        
-        hvac_sequence = hvac_vector.tolist()
+        ventilation_sequences, hvac_sequences = self.convert_flat_controls_to_ventillation_and_hvac(control_vector, 0)
         
         # Predict trajectories
         co2_trajectory, temp_trajectory = self.predict_trajectories(
                                             current_co2_ppm, 
                                             current_temp_c, 
                                             ventilation_sequences, 
-                                            hvac_sequence, 
+                                            hvac_sequences, 
                                             weather_series_hours, 
                                             start_time_hours_offset
                                         )
@@ -291,7 +282,7 @@ class HvacController:
             
             # Energy cost
             ventilation_inputs = [ventilation_sequences[j][i] for j in range(self.n_ventilation)]
-            hvac_input = hvac_sequence[i]
+            hvac_input = hvac_sequences[0][i]
             weather = weather_series_hours.interpolate(current_time_offset)
             outdoor_temp = weather.outdoor_temperature
             
@@ -313,7 +304,7 @@ class HvacController:
                 total_cost += 0.0001 * (control_change ** 2)
             
             if len(self.u_prev) > self.n_ventilation:
-                hvac_change = hvac_sequence[0] - self.u_prev[self.n_ventilation]
+                hvac_change = hvac_sequences[0][0] - self.u_prev[self.n_ventilation]
                 total_cost += 0.001 * (hvac_change ** 2)
         
         return total_cost
@@ -339,12 +330,12 @@ class HvacController:
         if max_time_needed > weather_series_hours.ticks[-1]:
             print(f"Warning: Weather forecast only goes to {weather_series_hours.ticks[-1]} hours, but need {max_time_needed} hours")
             # Use the last available weather for extrapolation
-        self.start_time = start_time
+        self._start_time = start_time
         self.set_points = self.calendar.get_relative_schedule(start_time)
+
         # Initial guess
         if self.u_prev is not None:
             u0 = self.next_prediction
-            # u0 = np.array(self.u_prev * self.n_steps)
         else:
             u0 = np.zeros(self.n_controls * self.n_steps)
         
@@ -369,25 +360,27 @@ class HvacController:
 
         if not result.success:
             print(f"Optimization failed: {result.message}")
+        ventilation_controls, hvac_controls = self.convert_flat_controls_to_ventillation_and_hvac(result.x)
+        self.next_prediction = []
+        for idx, val in enumerate(result.x[1:]):
+            # peel off the first value in each control sequence to step forward in time
+            if idx > 0 and idx % self.n_steps == 0:
+                self.next_prediction.append(0)
+            else:
+                self.next_prediction.append(val)
+        self.next_prediction.append(0)
+        
+        current_step_ventilation = [x[0] for x in ventilation_controls]
+        current_step_hvac = [x[0] for x in hvac_controls]
         # Extract optimal controls or best guess if optimization fails
-        n_ventilation_vars = self.n_ventilation * self.n_steps
-        ventilation_vector = result.x[:n_ventilation_vars]
-        hvac_vector = result.x[n_ventilation_vars:]
-        ventilation_controls = []
-        for i in range(self.n_ventilation):
-            start_idx = i * self.n_steps
-            ventilation_controls.append(ventilation_vector[start_idx])
-        hvac_control = hvac_vector[0]
         total_cost = result.fun
 
         # Store for next iteration
-        self.u_prev = ventilation_controls + [hvac_control]
-        self.optimized_ventilation_controls = ventilation_vector
-        self.optimized_hvac_controls = hvac_vector
+        self.u_prev = current_step_ventilation + current_step_hvac
+        self.optimized_ventilation_controls = ventilation_controls
+        self.optimized_hvac_controls = hvac_controls
         # remove the current time step and append something random to the current optimized control for the next initial guess for the optimization
-        # TODO: this below line is wrong - it should actually peel off the first item in each ventilation sequence (i.e, idx 0, idx n_step, idx 2 * n_step, etc)
-        self.next_prediction = np.concatenate((ventilation_vector[self.n_ventilation:], hvac_vector[1:], np.zeros(self.n_controls)))
-        return ventilation_controls, [hvac_control], total_cost
+        return current_step_ventilation, current_step_hvac, total_cost
 
     def set_horizon(self, horizon_hours: float):
         """
@@ -404,14 +397,32 @@ class HvacController:
     def get_next_prediction(self) -> Optional[np.ndarray]:
         return self.next_prediction
 
-    def get_optimized_hvac_controls(self):
+    def get_optimized_hvac_controls(self) -> List[List[float]]:
         return self.optimized_hvac_controls
 
-    def get_optimized_ventilation_controls(self):
+    def get_optimized_ventilation_controls(self) -> List[List[float]]:
         return self.optimized_ventilation_controls
 
+    def get_structured_controls_next_step(self) -> Dict[str, Any]:
+        ventilation_dict = {}
+        for i in range(self.n_ventilation):
+            ventilation_dict[type(self.room_dynamics.controllable_ventilations[i]).__name__.replace("VentilationModel", "")] = self.get_optimized_ventilation_controls()[i][0]
+        hvac_dict = {}
+        hvac_dict[type(self.building_model.heating_model).__name__.replace("ThermalDeviceModel", "")] = self.get_optimized_hvac_controls()[0][0]
+        return {   
+            "co2_trajectory": self.get_co2_trajectory(),
+            "temp_trajectory": self.get_temp_trajectory(),
+            "hvac_dict": hvac_dict, 
+            "ventilation_dict": ventilation_dict}
+    
+    def get_temp_trajectory(self) -> List[float]:
+        return self.temp_trajectory
+
+    def get_co2_trajectory(self) -> List[float]:
+        return self.co2_trajectory
+
     def get_start_time(self) -> datetime:
-        return self.start_time
+        return self._start_time         
     
     def generate_plot(self):
         x_axis = []
@@ -422,18 +433,9 @@ class HvacController:
         
         n_ventilation_vars = self.n_ventilation * self.n_steps
         print(f"[DEBUG] n_ventilation: {self.n_ventilation}, n_steps: {self.n_steps}, n_ventilation_vars: {n_ventilation_vars}")
-        ventilation_vector = self.get_optimized_ventilation_controls()
-        hvac_vector = self.get_optimized_hvac_controls()
-        print(f"[DEBUG] ventilation_vector len: {len(ventilation_vector)}, hvac_vector len: {len(hvac_vector)}")
-
-        # Reshape into sequences
-        ventilation_sequences = []
-        for i in range(self.n_ventilation):
-            start_idx = i * self.n_steps
-            end_idx = (i + 1) * self.n_steps
-            ventilation_sequences.append(ventilation_vector[start_idx:end_idx].tolist())
-        print(f"[DEBUG] ventilation_sequences lens: {[len(seq) for seq in ventilation_sequences]}")
-        hvac_sequence = hvac_vector.tolist()
+        ventilation_sequences = self.get_optimized_ventilation_controls()
+        hvac_sequence = self.get_optimized_hvac_controls()[0]
+        print(f"[DEBUG] ventilation_vector len: {len(ventilation_sequences)}, hvac_vector len: {len(hvac_sequence)}")
 
 
         for step in range(self.n_steps + 1):
@@ -451,7 +453,7 @@ class HvacController:
         ax1_control.plot(x_axis[1:], hvac_sequence, label="HVAC Controls", linestyle='--',)
         ax1_control.set_ylabel('Heating/Cooling Control Value (W)', color='red')
         ax1.plot(x_axis, set_point_temp, label="Set Point Temp", color='green')
-        ax1.plot(x_axis, self.temp_trajectory, label="Indoor Temp", color='orange')
+        ax1.plot(x_axis, self.get_temp_trajectory(), label="Indoor Temp", color='orange')
         ax1.plot(x_axis, outdoor_temp, label="Outdoor Temp", color="blue")
         ax1.set_ylabel("Temperature")
         ax1.legend(loc='upper left')
@@ -462,7 +464,7 @@ class HvacController:
         ax2.set_ylabel("CO2 PPM")
         ax2.set_title('CO₂ Levels and Ventilation Controls')
         ax2_vent.set_ylabel('Ventilation Control Value (m^3/hr)', color='purple')
-        ax2.plot(x_axis, self.co2_trajectory, label="CO2 Levels", color='orange')
+        ax2.plot(x_axis, self.get_co2_trajectory(), label="CO2 Levels", color='orange')
         ax2.plot(x_axis, set_point_co2, label="Set Point CO2", color='green')
 
         for i in range(len(ventilation_sequences)):
@@ -502,24 +504,18 @@ class HvacController:
         Returns:
             Tuple of (ventilation_controls, hvac_controls, co2_trajectory, temp_trajectory, total_cost, additional_info)
         """
-        ventilation_controls, hvac_controls, total_cost = self.optimize_controls(
+        _ = self.optimize_controls(
             current_co2_ppm, current_temp_c, weather_series_hours, start_time
         )
         
         # Predict full trajectories
-        ventilation_controls = self.get_optimized_ventilation_controls()
-        ventilation_sequences = []
-        for i in range(self.n_ventilation):
-            start_idx = i * self.n_steps
-            end_idx = (i + 1) * self.n_steps
-            ventilation_sequences.append(ventilation_controls[start_idx:end_idx].tolist())
-        
+        ventilation_controls = self.get_optimized_ventilation_controls()        
         hvac_controls = self.get_optimized_hvac_controls()
         
         co2_trajectory, temp_trajectory = self.predict_trajectories(
                                             current_co2_ppm, 
                                             current_temp_c,
-                                            ventilation_sequences, 
+                                            ventilation_controls, 
                                             hvac_controls,
                                             weather_series_hours, 
                                             0
@@ -531,15 +527,18 @@ class HvacController:
             current_time_offset = i * self.step_size_hours
             
             # Energy cost
-            ventilation_inputs = [ventilation_sequences[j][i] for j in range(self.n_ventilation)]
-            hvac_input = hvac_controls[i]
+            ventilation_inputs = [ventilation_controls[j][i] for j in range(self.n_ventilation)]
+
+            # TODO: support multiple hvac units
+            hvac_inputs = [hvac_controls[j][i] for j in range(self.n_hvac)]
+
             energy_cost = self.energy_cost(
                 ventilation_inputs, 
-                hvac_input,
+                hvac_inputs[0],
                 current_time_offset
             ) * self.step_size_seconds
             total_energy_cost += energy_cost
-            print(total_energy_cost, energy_cost, hvac_input)
+            print(total_energy_cost, energy_cost, hvac_inputs[0])
 
         
         return {
@@ -567,3 +566,28 @@ class HvacController:
             next_value = total_times[-1] + min_step_size_hours * mult
 
         return steps, total_times
+
+    def convert_flat_controls_to_ventillation_and_hvac(self, control_inputs: List[float], start_offset: int = 0) -> Tuple[List[List[float]], List[List[float]]]:
+        '''
+        Convert flattened list of control inputs into a tuple of a list of conrol inputs.
+
+        the input looks like [hvac0_t0, hvac1_t0..., hvacn_tend, ventilation0_t1, ventilation1_t0, ... ventilationn_tend]
+
+        and the output is 
+
+        Tuple([[hvac0_t0, hvac0_t1, ...hvac0_tend], ...[hvacn_t0..., hvacn_tend]], 
+        [[ventilation0_t0, ventilation0_t1, ...ventilation0_tend], ...[ventilationn_t0..., ventilationn_tend]])
+        '''
+        ventilation_vector = control_inputs[:self.n_ventilation * self.n_steps]
+        hvac_vector = control_inputs[self.n_ventilation * self.n_steps:]
+        ventilation_controls = []
+        for i in range(self.n_ventilation):
+            start_idx = i * self.n_steps + start_offset
+            ventilation_controls.append(ventilation_vector[start_idx: (i + 1) * self.n_steps])
+        
+        hvac_controls = []
+        for i in range(self.n_hvac):
+            start_idx = i * self.n_steps + start_offset
+            hvac_controls.append(hvac_vector[start_idx: (i + 1) * self.n_steps])
+
+        return ventilation_controls, hvac_controls

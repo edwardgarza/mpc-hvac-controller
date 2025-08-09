@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from co2_control.VentilationModels import (
     RoomCO2Dynamics, CO2Source, NaturalVentilationModel, 
-    WindowVentilationModel, HRVModel, ERVModel
+    WindowVentilationModel, HRVVentilationModel, ERVVentilationModel
 )
 from co2_control.IntegratedVentilationMpcController import IntegratedVentilationMpcController
 from WeatherConditions import WeatherConditions, SolarIrradiation
@@ -56,8 +56,8 @@ def run_integrated_ventilation_simulation():
     )
     
     window_ventilation = WindowVentilationModel()
-    hrv_system = HRVModel(heat_recovery_efficiency=0.0, fan_power_w_m3_per_hour=10.5)
-    erv_system = ERVModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5, fan_power_w_m3_per_hour=0.5)
+    hrv_system = HRVVentilationModel(heat_recovery_efficiency=0.0, fan_power_w_m3_per_hour=10.5)
+    erv_system = ERVVentilationModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5, fan_power_w_m3_per_hour=0.5)
     
     # Create room dynamics model
     room_dynamics = RoomCO2Dynamics(
@@ -323,19 +323,19 @@ def compare_ventilation_strategies():
             'max_rates': [150.0]
         },
         'HRV Only': {
-            'controllable': [HRVModel(heat_recovery_efficiency=0.7)],
+            'controllable': [HRVVentilationModel(heat_recovery_efficiency=0.7)],
             'max_rates': [100.0]
         },
         'ERV Only': {
-            'controllable': [ERVModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5)],
+            'controllable': [ERVVentilationModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5)],
             'max_rates': [100.0]
         },
         'Windows + HRV': {
-            'controllable': [WindowVentilationModel(), HRVModel(heat_recovery_efficiency=0.7)],
+            'controllable': [WindowVentilationModel(), HRVVentilationModel(heat_recovery_efficiency=0.7)],
             'max_rates': [100.0, 80.0]
         },
         'Windows + HRV + ERV': {
-            'controllable': [WindowVentilationModel(), HRVModel(heat_recovery_efficiency=0.7), ERVModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5)],
+            'controllable': [WindowVentilationModel(), HRVVentilationModel(heat_recovery_efficiency=0.7), ERVVentilationModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5)],
             'max_rates': [80.0, 60.0, 60.0]
         }
     }

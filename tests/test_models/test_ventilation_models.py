@@ -8,7 +8,7 @@ import numpy as np
 import math
 from src.controllers.ventilation.models import (
     RoomCO2Dynamics, CO2Source, WindowVentilationModel, 
-    HRVModel, ERVModel, NaturalVentilationModel
+    HRVVentilationModel, ERVVentilationModel, NaturalVentilationModel
 )
 
 
@@ -62,7 +62,7 @@ class TestVentilationModels(unittest.TestCase):
     
     def test_hrv_ventilation_fan_power(self):
         """Test HRV has fan power proportional to airflow"""
-        hrv = HRVModel(fan_power_w_m3_per_hour=2.0)
+        hrv = HRVVentilationModel(fan_power_w_m3_per_hour=2.0)
         
         # Fan power should be proportional to airflow
         self.assertEqual(hrv.fan_power_w(100.0), 200) 
@@ -71,7 +71,7 @@ class TestVentilationModels(unittest.TestCase):
     
     def test_erv_ventilation_fan_power(self):
         """Test ERV has fan power proportional to airflow"""
-        erv = ERVModel(fan_power_w_m3_per_hour=1.5)
+        erv = ERVVentilationModel(fan_power_w_m3_per_hour=1.5)
         
         # Fan power should be proportional to airflow
         self.assertEqual(erv.fan_power_w(100.0), 150)  
@@ -97,11 +97,11 @@ class TestVentilationModels(unittest.TestCase):
         window_load = window.energy_load_kw(100.0, indoor_temp, outdoor_temp)
         
         # HRV with 70% heat recovery
-        hrv = HRVModel(heat_recovery_efficiency=0.7)
+        hrv = HRVVentilationModel(heat_recovery_efficiency=0.7)
         hrv_load = hrv.energy_load_kw(100.0, indoor_temp, outdoor_temp)
         
         # ERV with 80% heat recovery
-        erv = ERVModel(heat_recovery_efficiency=0.8)
+        erv = ERVVentilationModel(heat_recovery_efficiency=0.8)
         erv_load = erv.energy_load_kw(100.0, indoor_temp, outdoor_temp)
         
         # When outdoor is cold, ventilation removes heat (negative load)
@@ -132,7 +132,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         
         # Create ventilation models
         self.window_vent = WindowVentilationModel()
-        self.hrv_vent = HRVModel(heat_recovery_efficiency=0.7)
+        self.hrv_vent = HRVVentilationModel(heat_recovery_efficiency=0.7)
         self.natural_vent = NaturalVentilationModel(
             indoor_volume_m3=self.room_volume_m3, 
             infiltration_rate_ach=0.1
@@ -368,8 +368,8 @@ class TestVentilationModelIntegration(unittest.TestCase):
         
         # Test different ventilation types
         window = WindowVentilationModel()
-        hrv = HRVModel(heat_recovery_efficiency=0.7)
-        erv = ERVModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5)
+        hrv = HRVVentilationModel(heat_recovery_efficiency=0.7)
+        erv = ERVVentilationModel(heat_recovery_efficiency=0.8, moisture_recovery_efficiency=0.5)
         
         # Calculate energy costs
         window_cost = window.energy_cost_per_s(ventilation_rate, indoor_temp, outdoor_temp)
@@ -392,8 +392,8 @@ class TestVentilationModelIntegration(unittest.TestCase):
         ventilation_rate = 100.0
         
         window = WindowVentilationModel()
-        hrv = HRVModel(fan_power_w_m3_per_hour=2.0)
-        erv = ERVModel(fan_power_w_m3_per_hour=1.5)
+        hrv = HRVVentilationModel(fan_power_w_m3_per_hour=2.0)
+        erv = ERVVentilationModel(fan_power_w_m3_per_hour=1.5)
         
         # Window should have no fan power
         self.assertEqual(window.fan_power_w(ventilation_rate), 0.0)

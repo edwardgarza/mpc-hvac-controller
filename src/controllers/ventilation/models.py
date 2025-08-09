@@ -228,7 +228,7 @@ class WindowVentilationModel(BaseVentilationModel):
         return self._max_airflow_m3_per_hour
 
 
-class ERVModel(BaseVentilationModel):
+class ERVVentilationModel(BaseVentilationModel):
     """
     Model for Energy Recovery Ventilator (ERV)
     
@@ -307,7 +307,7 @@ class ERVModel(BaseVentilationModel):
         return self._max_airflow_m3_per_hour
 
 
-class HRVModel(ERVModel):
+class HRVVentilationModel(ERVVentilationModel):
     """
     Model for Heat Recovery Ventilator (HRV)
     

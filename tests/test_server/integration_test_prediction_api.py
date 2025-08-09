@@ -41,7 +41,7 @@ def test_plot_prediction_endpoint():
         "current_temp_c": 22.0,
         "current_time_hours": 0.0,
         "weather_time_series": weather_data,
-        "horizon_hours": 24.0,
+        "horizon_hours": 4.0,
         "current_time": start_time_str
     }
     

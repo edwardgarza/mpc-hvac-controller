@@ -11,8 +11,8 @@ import dateutil.parser
 import numpy as np
 import matplotlib.pyplot as plt
 from src.controllers.ventilation.models import (
-    RoomCO2Dynamics, WindowVentilationModel, HRVModel, 
-    ERVModel, NaturalVentilationModel, CO2Source
+    RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
+    ERVVentilationModel, NaturalVentilationModel, CO2Source
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
@@ -27,7 +27,7 @@ def create_example_room():
     
     # Create ventilation models
     window_vent = WindowVentilationModel()
-    erv_vent = ERVModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
+    erv_vent = ERVVentilationModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
     natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.2)
     
     # Create CO2 sources (occupants)

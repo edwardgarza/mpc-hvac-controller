@@ -35,7 +35,7 @@ from src.utils.config import (
 from src.utils.factory import create_building_model, create_co2_sources
 from src.controllers.hvac import HvacController
 from src.controllers.ventilation.models import (
-    WindowVentilationModel, ERVModel, NaturalVentilationModel, CO2Source,
+    WindowVentilationModel, ERVVentilationModel, NaturalVentilationModel, CO2Source,
     RoomCO2Dynamics
 )
 from src.models.weather import WeatherConditions, SolarIrradiation
@@ -108,6 +108,13 @@ class ModelInfo(BaseModel):
     ventilation_types: List[str]
     controller_params: dict
 
+class CurrentControlResponse(BaseModel):
+    co2_level: float
+    indoor_temperature: float
+    indoor_setpoint: float
+    ventilation_controls: Dict
+    hvac_controls: Dict
+    last_predict_time: str
 
 # Global controller instance
 controller: Optional[HvacController] = None
@@ -129,7 +136,7 @@ def create_ventilation_models(building_config):
     # Create ERV models
     erv_ventilations = []
     for erv_config in building_config.ventilation.ervs:
-        erv_vent = ERVModel(
+        erv_vent = ERVVentilationModel(
             heat_recovery_efficiency=erv_config.heat_recovery_efficiency,
             fan_power_w_m3_per_hour=erv_config.fan_power_w_m3_per_hour,
             max_airflow_m3_per_hour=erv_config.max_airflow_m3_per_hour
@@ -402,25 +409,12 @@ async def get_prediction(request: PredictionRequest):
         
         if next_prediction is not None:
             # Extract control sequences from the prediction
-            n_ventilation_vars = controller.n_ventilation * controller.n_steps
-            ventilation_vector = next_prediction[:n_ventilation_vars]
-            hvac_vector = next_prediction[n_ventilation_vars:]
-            
-            # Reshape into sequences
-            ventilation_sequences = []
-            for i in range(controller.n_ventilation):
-                start_idx = i * controller.n_steps
-                end_idx = (i + 1) * controller.n_steps
-                ventilation_sequences.append(ventilation_vector[start_idx:end_idx].tolist())
-            
-            hvac_sequence = hvac_vector.tolist()
-            
             # Predict trajectories
             co2_trajectory, temperature_trajectory = controller.predict_trajectories(
                 request.current_co2_ppm,
                 request.current_temp_c,
-                ventilation_sequences, 
-                hvac_sequence,
+                controller.get_optimized_ventilation_controls(), 
+                controller.get_optimized_hvac_controls(),
                 weather_series,
                 0
             )
@@ -451,7 +445,7 @@ async def get_prediction(request: PredictionRequest):
                 })
         
         return PredictionResponse(
-            next_prediction=next_prediction.tolist() if next_prediction is not None else None,
+            next_prediction=next_prediction if next_prediction is not None else None,
             time_horizon_hours=time_horizon,
             weather_forecast=weather_forecast,
             has_prediction=next_prediction is not None,
@@ -482,33 +476,54 @@ async def plot_prediction():
         print(tb_str)
         raise HTTPException(status_code=500, detail=f"Plot generation failed: {tb_str}")
 
+@app.get("/current-control")
+async def current_control() -> CurrentControlResponse:
+    if controller is None:
+        print("[DEBUG] Controller is None!")
+        return CurrentControlResponse(
+            co2_level=0, 
+            indoor_temperature=0,
+            indoor_setpoint=0,
+            ventilation_controls={},
+            hvac_controls={},
+            last_predict_time="None")
 
-@app.get("/model-info")
-async def get_model_info():
-    """Get complete configuration information about the building and controller models"""
-    if building_model is None or room_dynamics is None:
-        raise HTTPException(status_code=500, detail="Models not initialized")
+    controls = controller.get_structured_controls_next_step()
+    return CurrentControlResponse(
+        co2_level=controls["co2_trajectory"][0], 
+        indoor_temperature=controls["temp_trajectory"][0],
+        indoor_setpoint=controls["temp_trajectory"][1],
+        ventilation_controls=controls["ventilation_dict"],
+        hvac_controls=controls["hvac_dict"],
+        last_predict_time=str(controller.get_start_time()))
+
+
+# @app.get("/model-info")
+# async def get_model_info():
+#     """Get complete configuration information about the building and controller models"""
+#     if building_model is None or room_dynamics is None:
+#         raise HTTPException(status_code=500, detail="Models not initialized")
     
-    try:
-        # Get the complete configuration
-        controller_config = get_controller_config(app.state.config_file_path)
-        building_config = get_building_config(app.state.config_file_path)
+#     try:
+#         # Get the complete configuration
+#         controller_config = get_controller_config(app.state.config_file_path)
+#         building_config = get_building_config(app.state.config_file_path)
         
-        # Return the complete configuration
-        return {
-            "model_summary": {
-                "building_components": [type(model).__name__ for model in building_model.thermal_models],
-                "heating_system_type": type(building_model.heating_model).__name__,
-                "ventilation_types": [type(vent).__name__ for vent in room_dynamics.controllable_ventilations],
-                "natural_ventilation_types": [type(vent).__name__ for vent in room_dynamics.natural_ventilations],
-                "co2_sources": [type(source).__name__ for source in room_dynamics.sources]
-            },
-            "controller_config": controller_config.model_dump(),
-            "building_config": building_config.model_dump(),
-        }
+#         # Return the complete configuration
+#         return {
+#             "model_summary": {
+#                 "building_components": [type(model).__name__ for model in building_model.thermal_models],
+#                 "heating_system_type": type(building_model.heating_model).__name__,
+#                 "ventilation_types": [type(vent).__name__ for vent in room_dynamics.controllable_ventilations],
+#                 "natural_ventilation_types": [type(vent).__name__ for vent in room_dynamics.natural_ventilations],
+#                 "co2_sources": [type(source).__name__ for source in room_dynamics.sources]
+#             },
+#             "controller_config": controller_config.model_dump(),
+#             "building_config": building_config.model_dump(),
+#         }
         
-    except Exception as e:
-        tb_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
-        print(tb_str)
-        raise HTTPException(status_code=500, detail=f"Failed to get model info: {tb_str}")
+#     except Exception as e:
+#         tb_str = ''.join(traceback.format_exception(type(e), e, e.__traceback__))
+#         print(tb_str)
+#         raise HTTPException(status_code=500, detail=f"Failed to get model info: {tb_str}")
 
