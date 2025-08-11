@@ -39,7 +39,7 @@ class HvacController:
                  max_iterations: int = 500, 
                  use_boolean_occupant_comfort: bool = True,
                  use_soft_boundary_condition: bool = True, 
-                 dynamically_lengthen_step_sizes: bool = True):
+                 dynamically_lengthen_step_sizes: bool = False):
         """
         Initialize integrated HVAC controller
         
@@ -139,25 +139,25 @@ class HvacController:
             
             # Predict temperature change using building model
             # Calculate ventilation heat load (additional to building model)
-            ventilation_heat_load = 0.0
+            ventilation_heat_load_w = 0.0
             for j, (vent_model, vent_input) in enumerate(
                 zip(self.room_dynamics.controllable_ventilations, ventilation_inputs)
             ):
                 heat_load = vent_model.energy_load_kw(
                     vent_input, current_temp, weather.outdoor_temperature
                 )
-                ventilation_heat_load += heat_load
+                ventilation_heat_load_w += heat_load
             
             # Calculate natural ventilation heat load
             for natural_vent in self.room_dynamics.natural_ventilations:
                 heat_load = natural_vent.energy_load_kw(
                     natural_vent.airflow_m3_per_hour(), current_temp, weather.outdoor_temperature
                 )
-                ventilation_heat_load += heat_load
+                ventilation_heat_load_w += heat_load
 
             # Use building model for temperature change (includes HVAC and thermal transfer)
             temp_change_per_s = self.building_model.temperature_change_per_s(
-                current_temp, weather, hvac_inputs[0], ventilation_heat_load * 1000
+                current_temp, weather, hvac_inputs[0], ventilation_heat_load_w
             )
 
             temp_change = temp_change_per_s * self.step_size_seconds
@@ -381,18 +381,6 @@ class HvacController:
         self.optimized_hvac_controls = hvac_controls
         # remove the current time step and append something random to the current optimized control for the next initial guess for the optimization
         return current_step_ventilation, current_step_hvac, total_cost
-
-    def set_horizon(self, horizon_hours: float):
-        """
-        Set a new prediction horizon for the controller
-        
-        Args:
-            horizon_hours: New prediction horizon in hours
-        """
-        self.horizon_hours = horizon_hours
-        self.n_steps = int(horizon_hours / self.step_size_hours)
-        # Reset next_prediction when horizon changes since its dimensions depend on n_steps
-        self.next_prediction = None
     
     def get_next_prediction(self) -> Optional[np.ndarray]:
         return self.next_prediction
@@ -487,6 +475,33 @@ class HvacController:
         
         return {"plot_data": plot_data}
 
+    def energy_costs_hvac_pid(self, start_temp):
+        '''
+        Calculate what the energy costs would've been if only hvac is considered and a normal control scheme is used that is unaware of 
+        time of use pricing or home/away scheduling.
+        '''
+        cost = 0
+        total_energy = 0
+        set_point_temp = self.set_points.interpolate_step_temp(0)
+        outdoor_weather = self.weather_series_hours.interpolate(0)
+        initial_j = self.building_model.heat_capacity * (start_temp - set_point_temp)
+        additional_energy_used_j = self.building_model.heating_model.power_consumed(initial_j, set_point_temp, outdoor_weather.outdoor_temperature)
+
+        for step in range(self.n_steps + 1):
+            relative_time_delta = self.step_size_hours * step
+            set_point_temp = self.set_points.interpolate_step_temp(relative_time_delta)
+            energy_cost = self.set_points.interpolate_step_energy_cost(relative_time_delta)
+            outdoor_weather = self.weather_series_hours.interpolate(relative_time_delta)
+            heat_change = self.building_model.powerflow(set_point_temp, outdoor_weather)
+            power_input = self.building_model.heating_model.power_consumed(-heat_change, set_point_temp, outdoor_weather.outdoor_temperature)
+            energy =  power_input / 1000 * self.step_size_hours  + additional_energy_used_j / 3600 / 1000 # kwh + j
+            additional_energy_used_j = 0
+            step_cost = energy * energy_cost 
+            cost += step_cost
+            total_energy += energy
+            print("pid costs: ", initial_j, step, set_point_temp, energy_cost, heat_change, power_input, energy, step_cost)
+        return cost, total_energy
+
 
     def get_control_info(self,
                         current_co2_ppm: float,
@@ -547,6 +562,7 @@ class HvacController:
             "co2_trajectory": co2_trajectory,
             "temp_trajectory": temp_trajectory,
             "total_energy_cost_dollars": total_energy_cost,
+            "energy_cost_dollars_pid": self.energy_costs_hvac_pid(current_temp_c)
         }
 
     def generate_time_steps(self, min_step_size_hours: float, horizon_hours: float, dynamically_lengthen_step_sizes: bool, double_size_every_x_points: int = 4):

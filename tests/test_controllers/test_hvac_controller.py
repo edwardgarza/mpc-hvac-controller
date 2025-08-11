@@ -1,14 +1,14 @@
 import dateutil.parser
 import numpy as np
 import unittest
-from src.controllers.hvac import HvacController
+from src.controllers.hvac_controller import HvacController
 from src.controllers.ventilation.models import (
     RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
     ERVVentilationModel, NaturalVentilationModel, CO2Source
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
-from src.controllers.hvac import HvacController
+from src.controllers.hvac_controller import HvacController
 from src.models.weather import WeatherConditions, SolarIrradiation
 from src.utils.orientation import Orientation
 from src.utils.timeseries import TimeSeries
@@ -26,7 +26,7 @@ class TestHVACController(unittest.TestCase):
         natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.2)
         
         # Create CO2 sources (occupants)
-        occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.02)  # 2 people
+        occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.00)  
         
         # Create room dynamics
         room_dynamics = RoomCO2Dynamics(
@@ -44,19 +44,15 @@ class TestHVACController(unittest.TestCase):
         """Create a simple building model"""
         
         # Create building components
-        studs = Studs(0.038, 0.089, 0.406)
-        wall = WallModel(studs, 0, 1, Orientation())
-        window = WindowModel(0.7, 1, 0.7)  
 
-        roof = RoofModel(10, 50, Orientation(), 0.85)  # 50 m² roof
-        floor = PierAndBeam(studs, 5, 50, Orientation())  # 50 m² floor
+        roof = RoofModel(10, 10, Orientation(), 0.85)  # 10 m² roof with heat loss of 1j/k
         
         # Create heating model
         heating_model = HeatPumpThermalDeviceModel(hspf=9.0, output_range=(-10000, 10000))
         # heating_model = ElectricResistanceThermalDeviceModel()
         # Create building model
         building_model = BuildingModel(
-            thermal_models=[wall, window, roof, floor],
+            thermal_models=[roof],
             heating_model=heating_model,
             heat_capacity=10 ** 6  # J/K
         )
@@ -108,7 +104,7 @@ class TestHVACController(unittest.TestCase):
         max_iterations=500,
     )
     default_controller.set_saved_schedule({"monday": [
-        {"time": "09:00", "co2": 800, "temperature": 21, "energy_cost": 0.15, "occupancy_count": 1}]})
+        {"time": "09:00", "co2": 800, "temperature": 20, "energy_cost": 0.15, "occupancy_count": 1}]})
 
 
     def test_step_sizes_static(self):
@@ -126,7 +122,8 @@ class TestHVACController(unittest.TestCase):
 
     def test_get_control_info_no_exception(self):
         start_time = dateutil.parser.isoparse("2024-01-15T09:30:00Z")
-        control_info = self.default_controller.get_control_info(1200, 20, self.create_weather_timeseries(), start_time)
+
+        control_info = self.default_controller.get_control_info(400, 21, self.create_weather_timeseries(), start_time)
         print(control_info)
         self.assertGreater(control_info['total_energy_cost_dollars'], 0)
 
@@ -134,4 +131,8 @@ class TestHVACController(unittest.TestCase):
         hvac_energy_used = 0
         for hvac_input in control_info['hvac_controls']:
             hvac_energy_used += sum([abs(x) for x in hvac_input])
-        self.assertGreater(control_info['total_energy_cost_dollars'], hvac_energy_used * 0.15 / 1000 * 0.5)
+        self.assertAlmostEqual(control_info['total_energy_cost_dollars'], hvac_energy_used * 0.15 / 1000 * 0.5, 3)
+        print(control_info["hvac_controls"])
+        print("total energy used:", hvac_energy_used)
+        # this should be slightly greater because the optimized controller likely won't cool during the first time step as much
+        self.assertGreaterEqual(control_info['energy_cost_dollars_pid'][0], hvac_energy_used * 0.15 / 1000 * 0.5, 3)

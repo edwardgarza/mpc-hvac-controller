@@ -16,7 +16,7 @@ from src.controllers.ventilation.models import (
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
-from src.controllers.hvac import HvacController
+from src.controllers.hvac_controller import HvacController
 from src.models.weather import WeatherConditions, SolarIrradiation
 from src.utils.orientation import Orientation
 from src.utils.timeseries import TimeSeries
