@@ -9,7 +9,7 @@
       "max_iterations": 500
     },
     "building": {
-      "heat_capacity": 1000000.0,
+      "heat_capacity": 10000000.0,
       "room": {
         "volume_m3": 700.0,
         "outdoor_co2_ppm": 400.0,

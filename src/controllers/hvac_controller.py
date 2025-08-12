@@ -139,29 +139,26 @@ class HvacController:
             
             # Predict temperature change using building model
             # Calculate ventilation heat load (additional to building model)
-            ventilation_heat_load_w = 0.0
+            ventilation_heat_load_kw = 0.0
             for j, (vent_model, vent_input) in enumerate(
                 zip(self.room_dynamics.controllable_ventilations, ventilation_inputs)
             ):
-                heat_load = vent_model.energy_load_kw(
+                ventilation_heat_load_kw += vent_model.energy_load_kw(
                     vent_input, current_temp, weather.outdoor_temperature
                 )
-                ventilation_heat_load_w += heat_load
-            
+
             # Calculate natural ventilation heat load
             for natural_vent in self.room_dynamics.natural_ventilations:
-                heat_load = natural_vent.energy_load_kw(
+                ventilation_heat_load_kw += natural_vent.energy_load_kw(
                     natural_vent.airflow_m3_per_hour(), current_temp, weather.outdoor_temperature
                 )
-                ventilation_heat_load_w += heat_load
 
             # Use building model for temperature change (includes HVAC and thermal transfer)
             temp_change_per_s = self.building_model.temperature_change_per_s(
-                current_temp, weather, hvac_inputs[0], ventilation_heat_load_w
+                current_temp, weather, hvac_inputs[0], ventilation_heat_load_kw * 1000
             )
 
             temp_change = temp_change_per_s * self.step_size_seconds
-            # print(f"old temp: {current_temp} new temp: {current_temp + temp_change} Temp change: {temp_change} per s, {temp_change * self.step_size_hours} in {self.step_size_hours} hours")
             current_temp += temp_change
 
             # Store trajectories

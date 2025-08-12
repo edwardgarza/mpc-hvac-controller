@@ -164,7 +164,7 @@ def run_hvac_example():
         if step % 4 == 0:
             print(f"\n=== Step {step} (Time: {current_time:.1f}h) Cost Analysis ===")
             print(f"Ventilation controls: {ventilation_controls}")
-            print(f"HVAC control: {hvac_controls[0]:.2f} kW")
+            print(f"HVAC control: {hvac_controls[0]:.2f} W")
             print(f"Total cost: {total_cost:.3f}")
             
             # Get current weather for display
@@ -184,11 +184,11 @@ def run_hvac_example():
                 zip(room_dynamics.controllable_ventilations, ventilation_controls)
             ):
                 fan_power = vent_model.fan_power_w(vent_input)
-                fan_cost = fan_power * energy_cost_per_kwh / 3600 / 1000  # $/s
+                fan_cost = fan_power * energy_cost_per_kwh / 3600 / 1000  
                 total_energy_cost += fan_cost
-                print(f"  Vent {j} fan power: {fan_power:.4f} kW, cost: {fan_cost:.6f} $/s")
+                print(f"  Vent {j} fan power: {fan_power:.4f} W, cost: {fan_cost:.6f} $/s")
             
-            hvac_cost = abs(hvac_controls[0]) * energy_cost_per_kwh / 3600
+            hvac_cost = abs(hvac_controls[0]) * energy_cost_per_kwh / 3600 / 1000
             total_energy_cost += hvac_cost
             print(f"  HVAC cost: {hvac_cost:.6f} $/s")
             print(f"  Total energy cost: {total_energy_cost:.6f} $/s")
@@ -260,10 +260,13 @@ def run_hvac_example():
             ventilation_heat_load += heat_load
         
         # Use building model for proper temperature integration
+        delta_temp_linear = building_model.temperature_change_per_s(current_temp_c, current_weather, hvac_input, ventilation_heat_load * 1000) * controller.step_size_seconds
         new_current_temp_c = building_model.integrate_temperature_change(
             current_temp_c, current_weather, hvac_input, controller.step_size_seconds, ventilation_heat_load * 1000
         )
-        print(f"New temp: {new_current_temp_c} old: {current_temp_c}, hvac: {hvac_input}, ventilation: {ventilation_heat_load}")
+        print(f"New temp linear: {current_temp_c + delta_temp_linear}")
+        print(f"New temp: {new_current_temp_c} old: {current_temp_c}, hvac: {hvac_input}, \
+            hvac output w {building_model.heating_model.power_produced(hvac_input, current_temp_c, current_weather.outdoor_temperature)} ventilation load w: {ventilation_heat_load * 1000}")
         current_temp_c = new_current_temp_c
         # Store state
         co2_history.append(current_co2_ppm)

@@ -41,10 +41,10 @@ class WeatherConditions(ArrayConversion):
         return self.irradiation.to_array() + [self.wind_speed, self.outdoor_temperature, self.ground_temperature]
 
     def sol_temp(self, absorptivity: float, orientation: Orientation) -> float:
-        sol_temp = self.outdoor_temperature + absorptivity * self.projected_intensity(orientation) / \
-                   (5.7 + 3.8 * self.wind_speed)
+        # sol_temp = self.outdoor_temperature + absorptivity * self.projected_intensity(orientation) / \
+        #            (5.7 + 3.8 * self.wind_speed)
         # sol_temp -= 3.9 * math.cos(vertical_orientation)
-        return sol_temp
+        return self.outdoor_temperature
 
     def projected_intensity(self, orientation: Orientation) -> float:
         # calculate the dot product of the sun and the orientation
