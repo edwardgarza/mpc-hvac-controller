@@ -2,26 +2,39 @@
 
 Model Predictive Control HVAC system with CO2 and ventilation management.
 
-<!-- Updated to test GitHub Action -->
 The goal of this is to have a more intelligent heating/cooling schedule that takes into account building parameters, occupant comfort, and predicted weather patterns.
 
-At a high level, a traditional thermostat works as a [pid](https://en.wikipedia.org/wiki/PID_controller) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy use, cost, or even carbon intensity of the electric sources. This also includes ventillation for controlling CO2 levels.
+At a high level, a traditional thermostat works as a [pid](https://en.wikipedia.org/wiki/PID_controller) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. It doesn't do any planning based on any external variables.
 
-Time of use pricing and scheduling for different temperatures or occupancy levels is currently not supported.
+The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy use, cost, or even carbon intensity of the electric sources. This also includes ventillation for controlling CO2 levels and/or capturing free cooling or heating.
 
-The controller optimizes over a prediction horizon (typically 24 hours) to find the best trajectory that balances energy efficiency, comfort, and air quality. All units are in SI. Once it implements the first step, it will then recalculate the entire next 24 hour horizon. 
+The controller optimizes over a prediction horizon (typically 24 hours) to find the best trajectory that balances energy efficiency, comfort, and air quality. Once it implements the first step, it will then recalculate the entire next 24 hour horizon. This is the control loop, and 15-30 minutes between predictions is probably sufficient. 
 
-### Controller Types
+During each time step, the ventilation rates could be controlled by using a PWM signal to precisely control the fan speeds or by simply turning the ventilation on/off.
 
-1. **`HvacController`** - **Main integrated controller**
-   - Controls both heating/cooling AND ventilation
-   - Optimizes all systems simultaneously so can capture free heating/cooling from open windows
-   - Recommended for most use cases
+For HVAC, the controls are a little less clear and I think the best option would be to set the thermostat to the specified mode (i.e. heat, cool, or off) and change the set point to the expected indoor temperate at that time step. 
 
-2. **`IntegratedVentilationMpcController`** - **Ventilation-only controller**
-   - Controls only ventilation systems
-   - Useful for ventilation-only scenarios or debugging
+All units are in SI. 
 
+### Currently supported features
+Weekly schedules that include temperature set points, co2 set points, electricity pricing, and occupancy for home and away planning
+Multiple ventilation types simultaneously
+Adjustable weights for co2, comfort, and electricity costs
+Visual representation of the planned trajectory
+
+### Currently planned to be supported
+More fine-grained control around temperate set points (i.e. dead-bands where the cost is 0 in that range)
+Multiple simultaneous hvac systems (i.e. air source heat pump and electric resistance strips)
+CO2 sources that change over time based on the scheduling
+Dynamic step sizes to make the optimization much faster
+
+### Features under consideration
+Feels-like temperature that includes humidity levels
+Controlling and modeling humidity levels
+More accurate simulation on erv/hrv efficiencies vs fan speed
+More accurate simulation of heat pumps output capacities based on indoor and outdoor temperatures
+Solar heat gain on all surfaces
+Carbon-intensity in the optimization
 
 <h2>Assumptions</h2>
 
@@ -70,18 +83,20 @@ https://www.nature.com/articles/s41597-019-0199-y
 
 We can estimate COP of an air source heat pump to first order as 6.08 - 0.09 $\delta t$
 
-For cooling I will use the same formula for the COP - 1.
+For cooling I will use the same formula for the COP - 1 and ignore any latent cooling.
 
 ## Overview
 
 ### Running Examples
 
 ```bash
-# Main integrated HVAC example
+# Main integrated HVAC example (can take ~ 10 min to complete)
 python3 example_hvac_controller.py
 
-# Ventilation-only example
-python3 co2_control/integrated_ventilation_example.py
+# running the server locally
+python3 start_server.py --host 0.0.0.0 --port 8000 --config-file ./data/hvac_config.json
+
+Then run /tests/test_server/integration_test_prediction_api.py to send APIs to the server and see the best planned trajectory
 ```
 
 ## Configuration
@@ -93,7 +108,7 @@ The `DefaultBuildingModel` provides typical residential parameters:
 - **Windows**: R-4 (0.70 m²·K/W) with 0.7 SHGC
 - **Roof**: R-60 (10.56 m²·K/W)
 - **Floor**: R-30 (5.28 m²·K/W)
-- **Heat capacity**: 100 kJ/K
+- **Heat capacity**: 100 kJ/K (not really sure if this is a good value or not)
 
 ### Controller Parameters
 
@@ -101,5 +116,4 @@ The `DefaultBuildingModel` provides typical residential parameters:
 - **`co2_weight`**: Weight for CO₂ deviation penalty
 - **`energy_weight`**: Weight for energy costs
 - **`comfort_weight`**: Weight for temperature comfort
-- **`co2_target_ppm`**: Target CO₂ concentration (default: 800 ppm)
-- **`temp_target_c`**: Target indoor temperature (default: 22°C)
+- **`step_size_hours`**: Step sizes used for planning. Total points optimized would then be horizon_hours * step_size_hours 
