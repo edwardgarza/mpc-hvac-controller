@@ -115,6 +115,8 @@ class CurrentControlResponse(BaseModel):
     ventilation_controls: Dict
     hvac_controls: Dict
     last_predict_time: str
+    estimated_cost_over_horizon: float
+    naive_cost_over_horizon_pid: float
 
 # Global controller instance
 controller: Optional[HvacController] = None
@@ -483,7 +485,8 @@ async def current_control() -> CurrentControlResponse:
             indoor_setpoint=0,
             ventilation_controls={},
             hvac_controls={},
-            last_predict_time="None")
+            last_predict_time="None", 
+            estimated_cost_over_horizon=0)
 
     controls = controller.get_structured_controls_next_step()
     return CurrentControlResponse(
@@ -492,5 +495,7 @@ async def current_control() -> CurrentControlResponse:
         indoor_setpoint=controls["temp_trajectory"][1],
         ventilation_controls=controls["ventilation_dict"],
         hvac_controls=controls["hvac_dict"],
-        last_predict_time=str(controller.get_start_time()))
+        last_predict_time=str(controller.get_start_time()), 
+        estimated_cost_over_horizon=controls["estimated_cost"],
+        naive_cost_over_horizon_pid=controls["pid_cost"])
 

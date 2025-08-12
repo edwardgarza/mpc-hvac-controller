@@ -392,16 +392,21 @@ class HvacController:
         return self.optimized_ventilation_controls
 
     def get_structured_controls_next_step(self) -> Dict[str, Any]:
+        ventilation_controls = self.get_optimized_ventilation_controls()        
+        hvac_controls = self.get_optimized_hvac_controls()
         ventilation_dict = {}
         for i in range(self.n_ventilation):
-            ventilation_dict[type(self.room_dynamics.controllable_ventilations[i]).__name__.replace("VentilationModel", "")] = self.get_optimized_ventilation_controls()[i][0]
+            ventilation_dict[type(self.room_dynamics.controllable_ventilations[i]).__name__.replace("VentilationModel", "")] = ventilation_controls[i][0]
         hvac_dict = {}
-        hvac_dict[type(self.building_model.heating_model).__name__.replace("ThermalDeviceModel", "")] = self.get_optimized_hvac_controls()[0][0]
+        hvac_dict[type(self.building_model.heating_model).__name__.replace("ThermalDeviceModel", "")] = hvac_controls[0][0]
+
         return {   
             "co2_trajectory": self.get_co2_trajectory(),
             "temp_trajectory": self.get_temp_trajectory(),
             "hvac_dict": hvac_dict, 
-            "ventilation_dict": ventilation_dict}
+            "ventilation_dict": ventilation_dict, 
+            "estimated_cost": self.energy_costs_controls(ventilation_controls, hvac_controls),
+            "pid_cost": self.energy_costs_hvac_pid(self.get_temp_trajectory()[0])}
     
     def get_temp_trajectory(self) -> List[float]:
         return self.temp_trajectory
@@ -499,9 +504,28 @@ class HvacController:
             step_cost = energy * energy_cost 
             cost += step_cost
             total_energy += energy
-            print("pid costs: ", initial_j, step, set_point_temp, energy_cost, heat_change, power_input, energy, step_cost)
-        return cost, total_energy
+        return cost
 
+    def energy_costs_controls(self, ventilation_controls: List[List[float]], hvac_controls: List[List[float]]) -> float:
+
+        total_energy_cost = 0
+        for i in range(self.n_steps):
+            # CO2 cost
+            current_time_offset = i * self.step_size_hours
+            
+            # Energy cost
+            ventilation_inputs = [ventilation_controls[j][i] for j in range(self.n_ventilation)]
+
+            # TODO: support multiple hvac units
+            hvac_inputs = [hvac_controls[j][i] for j in range(self.n_hvac)]
+
+            energy_cost = self.energy_cost(
+                ventilation_inputs, 
+                hvac_inputs[0],
+                current_time_offset
+            ) * self.step_size_seconds
+            total_energy_cost += energy_cost
+        return total_energy_cost
 
     def get_control_info(self,
                         current_co2_ppm: float,
@@ -535,33 +559,12 @@ class HvacController:
                                             weather_series_hours, 
                                             0
                                         )   
-
-        total_energy_cost = 0
-        for i in range(self.n_steps):
-            # CO2 cost
-            current_time_offset = i * self.step_size_hours
-            
-            # Energy cost
-            ventilation_inputs = [ventilation_controls[j][i] for j in range(self.n_ventilation)]
-
-            # TODO: support multiple hvac units
-            hvac_inputs = [hvac_controls[j][i] for j in range(self.n_hvac)]
-
-            energy_cost = self.energy_cost(
-                ventilation_inputs, 
-                hvac_inputs[0],
-                current_time_offset
-            ) * self.step_size_seconds
-            total_energy_cost += energy_cost
-            print(total_energy_cost, energy_cost, hvac_inputs[0])
-
-        
         return {
             "ventillation_controls": ventilation_controls,
             "hvac_controls": hvac_controls,
             "co2_trajectory": co2_trajectory,
             "temp_trajectory": temp_trajectory,
-            "total_energy_cost_dollars": total_energy_cost,
+            "total_energy_cost_dollars": self.energy_costs_controls(ventilation_controls, hvac_controls),
             "energy_cost_dollars_pid": self.energy_costs_hvac_pid(current_temp_c)
         }
 

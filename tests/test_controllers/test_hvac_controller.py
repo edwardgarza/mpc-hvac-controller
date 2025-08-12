@@ -135,4 +135,4 @@ class TestHVACController(unittest.TestCase):
         print(control_info["hvac_controls"])
         print("total energy used:", hvac_energy_used)
         # this should be slightly greater because the optimized controller likely won't cool during the first time step as much
-        self.assertGreaterEqual(control_info['energy_cost_dollars_pid'][0], hvac_energy_used * 0.15 / 1000 * 0.5, 3)
+        self.assertGreaterEqual(control_info['energy_cost_dollars_pid'], hvac_energy_used * 0.15 / 1000 * 0.5, 3)
