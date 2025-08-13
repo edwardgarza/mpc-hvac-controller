@@ -114,6 +114,8 @@ class HvacController:
         Returns:
             Tuple of (co2_trajectory, temp_trajectory)
         """
+
+        # TODO: revisit if this first data point should be in the trajectory or not
         co2_trajectory = [initial_co2_ppm]
         temp_trajectory = [initial_temp_c]
         
@@ -479,8 +481,8 @@ class HvacController:
 
     def energy_costs_hvac_pid(self, start_temp):
         '''
-        Calculate what the energy costs would've been if only hvac is considered and a normal control scheme is used that is unaware of 
-        time of use pricing or home/away scheduling.
+        Calculate what the energy costs would've been if only hvac  and natural ventilation is considered and a
+         normal control scheme is used that is unaware of time of use pricing or home/away scheduling.
         '''
         cost = 0
         total_energy = 0
@@ -494,7 +496,8 @@ class HvacController:
             set_point_temp = self.set_points.interpolate_step_temp(relative_time_delta)
             energy_cost = self.set_points.interpolate_step_energy_cost(relative_time_delta)
             outdoor_weather = self.weather_series_hours.interpolate(relative_time_delta)
-            heat_change = self.building_model.powerflow(set_point_temp, outdoor_weather)
+            ventilation_load_kw = sum([x.energy_load_kw(None, set_point_temp, outdoor_weather.outdoor_temperature) for x in self.room_dynamics.natural_ventilations])
+            heat_change = self.building_model.powerflow(set_point_temp, outdoor_weather) + ventilation_load_kw * 1000
             power_input = self.building_model.heating_model.power_consumed(-heat_change, set_point_temp, outdoor_weather.outdoor_temperature)
             energy =  power_input / 1000 * self.step_size_hours  + additional_energy_used_j / 3600 / 1000 # kwh + j
             additional_energy_used_j = 0

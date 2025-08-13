@@ -14,11 +14,11 @@ class CO2Source:
     Models a source of CO2 (e.g., occupants, pets, etc.)
     """
     def __init__(self, co2_production_rate_m3_per_hour: float):
-        self.co2_production_rate_m3_per_hour = co2_production_rate_m3_per_hour
+        self._co2_production_rate_m3_per_hour = co2_production_rate_m3_per_hour
         
     def co2_production_rate(self, t=None):
         # Could be time-varying in the future
-        return self.co2_production_rate_m3_per_hour
+        return self._co2_production_rate_m3_per_hour
 
 
 class BaseVentilationModel(ABC):
@@ -339,9 +339,15 @@ class RoomCO2Dynamics:
     """
     Combines sources and ventilation models to compute net CO2 change in the room.
     """
-    def __init__(self, volume_m3, sources, controllable_ventilations, natural_ventilations, outdoor_co2_ppm=400):
+    def __init__(
+        self, 
+        volume_m3: float, 
+        sources: List[CO2Source], 
+        controllable_ventilations :List[BaseVentilationModel], 
+        natural_ventilations: List[NaturalVentilationModel], 
+        outdoor_co2_ppm: float = 400):
         self.volume_m3 = volume_m3
-        self.sources = sources  # list of CO2Source
+        self.sources = sources 
         self.controllable_ventilations = controllable_ventilations  # list of ventilation models
         self.natural_ventilations = natural_ventilations  # list of ventilation models
         self.outdoor_co2_ppm = outdoor_co2_ppm

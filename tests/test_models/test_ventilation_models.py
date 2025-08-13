@@ -95,7 +95,7 @@ class TestVentilationModels(unittest.TestCase):
         # Window ventilation (no heat recovery)
         window = WindowVentilationModel()
         window_load = window.energy_load_kw(100.0, indoor_temp, outdoor_temp)
-        
+
         # HRV with 70% heat recovery
         hrv = HRVVentilationModel(heat_recovery_efficiency=0.7)
         hrv_load = hrv.energy_load_kw(100.0, indoor_temp, outdoor_temp)
@@ -168,9 +168,14 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
             initial_co2_ppm, control_inputs
         )
-        
+
+        co2_production_rate_m3_per_second = sum([x.co2_production_rate() for x in self.room_dynamics.sources]) / 3600
+
+        # since the starting co2 is the same as the outdoor co2, the ventilation rate is irrelevant        
+        calc_co2_rate = co2_production_rate_m3_per_second / self.room_dynamics.volume_m3 * 10 ** 6
+
         # CO2 should increase (positive change rate)
-        self.assertGreater(co2_change_per_s, 0.0)
+        self.assertAlmostEqual(co2_change_per_s, calc_co2_rate)
         self.assertAlmostEqual(self.room_dynamics.co2_levels_in_t(initial_co2_ppm, control_inputs, 15 * 60), 400 + co2_change_per_s * 15 * 60, delta=1.0)
     
     def test_co2_change_with_high_ventilation(self):
@@ -181,8 +186,14 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
             initial_co2_ppm, control_inputs
         )
-        
+        co2_production_rate_m3_per_second = sum([x.co2_production_rate() for x in self.room_dynamics.sources]) / 3600
+        co2_prod_ppm_s = co2_production_rate_m3_per_second * 10 ** 6
+        airflow = self.room_dynamics.controllable_ventilations[0].airflow_m3_per_hour(control_inputs[0])
+        airflow += self.room_dynamics.natural_ventilations[0].airflow_m3_per_hour()
+
+        co2_remove_ppm_s = (initial_co2_ppm - 400) * airflow / 3600
         # CO2 should decrease (negative change rate)
+        self.assertAlmostEqual(co2_change_per_s, (co2_prod_ppm_s - co2_remove_ppm_s) / self.room_volume_m3)
         self.assertLess(co2_change_per_s, 0.0)
     
     def test_co2_equilibrium_calculation(self):

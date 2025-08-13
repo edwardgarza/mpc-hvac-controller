@@ -23,7 +23,7 @@ class TestHVACController(unittest.TestCase):
         # Create ventilation models
         window_vent = WindowVentilationModel()
         erv_vent = ERVVentilationModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
-        natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.0)
+        natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.2)
         
         # Create CO2 sources (occupants)
         occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.00)  

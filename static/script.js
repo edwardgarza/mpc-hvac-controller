@@ -72,8 +72,8 @@ async function refreshStatus() {
         .join('<br>');
     
         document.getElementById('hvac-status').innerHTML = hvacString;
-        document.getElementById('estimated-cost').textContent = result.estimated_cost_over_horizon.toFixed(3);
-        document.getElementById('unoptimized-cost').textContent = result.naive_cost_over_horizon_pid.toFixed(3);
+        document.getElementById('estimated-cost').textContent = '$' + result.estimated_cost_over_horizon.toFixed(3);
+        document.getElementById('unoptimized-cost').textContent = '$' + result.naive_cost_over_horizon_pid.toFixed(3);
 
 
     } catch (error) {

@@ -53,13 +53,14 @@ class Calendar:
                     
                 # Get the date for this day of the week
                 days_ahead = self.day_mapping[day_name.lower()] - current_date.weekday() + 7 * week
-                if days_ahead < 0:  # Target day already happened this week
+                if days_ahead < -1:  # the previous day's schedule could still be in effect 
                     continue
                 day_date = current_date + timedelta(days=days_ahead)
                 
                 for entry in day_schedule:
                     # Create absolute datetime
-                    absolute_time = f"{day_date.strftime('%Y-%m-%d')}T{entry['time']}:00Z"
+                    hour, minute = entry["time"].split(':')
+                    absolute_time = datetime(day_date.year, day_date.month, day_date.day, int(hour), int(minute), tzinfo=start_date_time.tzinfo)
                     
                     absolute_schedule.append(
                         [absolute_time, [entry.get("co2", 800.0), entry.get("temperature", 22.0), entry.get("energy_cost", 0.15), entry.get("occupancy_count", 1)]]
@@ -73,5 +74,5 @@ class Calendar:
     def get_relative_schedule(self, start_date_time: datetime, num_weeks: int = 2) -> RelativeScheduleTimeSeries:
         absolute_schedule = self.get_absolute_schedule(start_date_time, num_weeks)
         set_points = absolute_schedule
-        return RelativeScheduleTimeSeries([(dateutil.parser.isoparse(x[0]) - start_date_time).total_seconds() / 3600.0 for x in set_points], [x[1] for x in set_points])
+        return RelativeScheduleTimeSeries([(x[0] - start_date_time).total_seconds() / 3600.0 for x in set_points], [x[1] for x in set_points])
     
