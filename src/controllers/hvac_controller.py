@@ -8,6 +8,7 @@ import datetime
 import io
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.ma import bool_
 import scipy.optimize as optimize
 from typing import List, Tuple, Optional, Dict, Any
 
@@ -39,7 +40,8 @@ class HvacController:
                  max_iterations: int = 500, 
                  use_boolean_occupant_comfort: bool = True,
                  use_soft_boundary_condition: bool = True, 
-                 dynamically_lengthen_step_sizes: bool = False):
+                 smooth_controls: bool = False,
+                 dynamically_lengthen_step_sizes: bool = False): 
         """
         Initialize integrated HVAC controller
         
@@ -69,6 +71,7 @@ class HvacController:
         self.use_boolean_occupant_comfort = use_boolean_occupant_comfort
         self.use_soft_boundary_condition = use_soft_boundary_condition
         self.dynamically_lengthen_step_sizes = dynamically_lengthen_step_sizes
+        self.smooth_controls = smooth_controls
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
         self.steps, self.cumulative_steps = self.generate_time_steps(self.step_size_hours, self.horizon_hours,  self.dynamically_lengthen_step_sizes)
@@ -293,21 +296,47 @@ class HvacController:
             
             cost_of_step = co2_cost + comfort_cost + energy_cost
             total_cost += cost_of_step
-        if self.use_soft_boundary_condition:
-            total_cost += cost_of_step * 5
+            if i > 0:
+                for vent in range(self.n_ventilation):
+                    control_change = ventilation_sequences[vent][i] - ventilation_sequences[vent][i - 1]
+                    total_cost += 0.0001 * (control_change ** 2)
+                for h in range(self.n_hvac):
+                    hvac_change = hvac_sequences[h][i] - hvac_sequences[h][i - 1]
+                    total_cost += 0.0001 * (hvac_change ** 2)
 
-        # Control smoothing penalty
+        if self.use_soft_boundary_condition:
+            total_cost += self.n_steps / 10
+
+        if self.smooth_controls:
+            total_cost += self.cost_smoothed_controls(ventilation_sequences, hvac_sequences)
+
+        return total_cost
+
+    def cost_smoothed_controls(self, ventilation_sequences, hvac_sequences):
+        '''
+        Extra cost associated with changing control values between time steps - may make optimizations take longer to due 
+        non-linearity.
+        '''
+        total_costs = 0
+        for i in range(1, self.n_steps):
+                for vent in range(self.n_ventilation):
+                    control_change = ventilation_sequences[vent][i] - ventilation_sequences[vent][i - 1]
+                    total_cost += 0.001 * (control_change ** 2)
+                for h in range(self.n_hvac):
+                    hvac_change = hvac_sequences[h][i] - hvac_sequences[h][i - 1]
+                    total_cost += 0.0001 * (hvac_change ** 2)
+
+        # Control smoothing penalty from last executed value
         if self.u_prev is not None:
             for i in range(self.n_ventilation):
                 control_change = ventilation_sequences[i][0] - self.u_prev[i]
                 total_cost += 0.0001 * (control_change ** 2)
             
-            if len(self.u_prev) > self.n_ventilation:
-                hvac_change = hvac_sequences[0][0] - self.u_prev[self.n_ventilation]
-                total_cost += 0.001 * (hvac_change ** 2)
-        
-        return total_cost
-    
+            for h in range(self.n_hvac):
+                hvac_change = hvac_sequences[h][0] - self.u_prev[self.n_ventilation + h]
+                total_cost += 0.0001 * (hvac_change ** 2)
+        return total_costs
+
     def optimize_controls(self,
                          current_co2_ppm: float,
                          current_temp_c: float,
