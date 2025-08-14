@@ -17,24 +17,24 @@ For HVAC, the controls are a little less clear and I think the best option would
 All units are in SI. 
 
 ### Currently supported features
-Weekly schedules that include temperature set points, co2 set points, electricity pricing, and occupancy for home and away planning
-Multiple ventilation types simultaneously
-Adjustable weights for co2, comfort, and electricity costs
-Visual representation of the planned trajectory
+- Weekly schedules that include temperature set points, co2 set points, electricity pricing, and occupancy for home and away planning
+- Multiple ventilation types simultaneously
+- Adjustable weights for co2, comfort, and electricity costs
+- Visual representation of the planned trajectory
 
 ### Currently planned to be supported
-More fine-grained control around temperate set points (i.e. dead-bands where the cost is 0 in that range)
-Multiple simultaneous hvac systems (i.e. air source heat pump and electric resistance strips)
-CO2 sources that change over time based on the scheduling
-Dynamic step sizes to make the optimization much faster
+- More fine-grained control around temperate set points (i.e. dead-bands where the cost is 0 in that range)
+- Multiple simultaneous hvac systems (i.e. air source heat pump and electric resistance strips)
+- CO2 sources that change over time based on the scheduling
+- Dynamic step sizes to make the optimization much faster
 
 ### Features under consideration
-Feels-like temperature that includes humidity levels
-Controlling and modeling humidity levels
-More accurate simulation on erv/hrv efficiencies vs fan speed
-More accurate simulation of heat pumps output capacities based on indoor and outdoor temperatures
-Solar heat gain on all surfaces
-Carbon-intensity in the optimization
+- Feels-like temperature that includes humidity levels
+- Controlling and modeling humidity levels
+- More accurate simulation on erv/hrv efficiencies vs fan speed
+- More accurate simulation of heat pumps output capacities based on indoor and outdoor temperatures
+- Solar heat gain on all surfaces
+- Carbon-intensity in the optimization
 
 <h2>Assumptions</h2>
 
