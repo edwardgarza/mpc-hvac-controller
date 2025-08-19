@@ -4,12 +4,13 @@
       "co2_weight": 0.001,
       "energy_weight": 100.0,
       "comfort_weight": 0.1,
-      "step_size_hours": 0.5,
+      "step_size_hours": 1.0,
       "optimization_method": "SLSQP",
       "max_iterations": 500
     },
     "building": {
       "heat_capacity": 10000000.0,
+      "baseload_interior_heating": 500,
       "room": {
         "volume_m3": 700.0,
         "outdoor_co2_ppm": 400.0,

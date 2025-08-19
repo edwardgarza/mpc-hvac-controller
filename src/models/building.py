@@ -279,10 +279,11 @@ class BuildingModel(ThermalTransfer):
         heating_model: Heating/cooling system model
         heat_capacity: Building heat capacity in J/K
     """
-    def __init__(self, thermal_models: List[ThermalTransfer], heating_model: ThermalDeviceModel, heat_capacity: float) -> None:
+    def __init__(self, thermal_models: List[ThermalTransfer], heating_model: ThermalDeviceModel, heat_capacity: float, baseload_interior_heating: float = 0.0) -> None:
         self.thermal_models = thermal_models
         self.heating_model = heating_model
         self.heat_capacity = heat_capacity
+        self.baseload_interior_heating = baseload_interior_heating
 
     def powerflow(self, *args: Any) -> float:
         """
@@ -297,7 +298,7 @@ class BuildingModel(ThermalTransfer):
         Returns:
             Total heat flow in watts (negative = heat flowing out of building)
         """
-        total_power = 0.0
+        total_power = self.baseload_interior_heating
         for model in self.thermal_models:
             power_change = model.powerflow(*args)
             if power_change is not None:

@@ -61,7 +61,8 @@ def create_example_building():
     building_model = BuildingModel(
         thermal_models=[wall, window, roof, floor],
         heating_model=heating_model,
-        heat_capacity=10 ** 6  # J/K
+        heat_capacity=10 ** 6, # J/K
+        baseload_interior_heating=100
     )
     
     return building_model
@@ -176,7 +177,7 @@ def run_hvac_example():
             
             # Calculate individual costs for current state
             co2_cost = controller.co2_cost(current_co2_ppm)
-            comfort_cost = controller.comfort_cost(current_temp_c)
+            comfort_cost = controller.comfort_cost(current_temp_c)[1]
             
             # Calculate energy cost for current controls
             total_energy_cost = 0.0
@@ -205,7 +206,7 @@ def run_hvac_example():
         
         # Calculate cost breakdown for current state
         co2_cost = controller.co2_cost(current_co2_ppm)
-        comfort_cost = controller.comfort_cost(current_temp_c)
+        comfort_cost = controller.comfort_cost(current_temp_c)[1]
         
         # Calculate energy cost for current controls
         total_energy_cost = 0.0
@@ -261,9 +262,10 @@ def run_hvac_example():
         
         # Use building model for proper temperature integration
         delta_temp_linear = building_model.temperature_change_per_s(current_temp_c, current_weather, hvac_input, ventilation_heat_load * 1000) * controller.step_size_seconds
-        new_current_temp_c = building_model.integrate_temperature_change(
-            current_temp_c, current_weather, hvac_input, controller.step_size_seconds, ventilation_heat_load * 1000
-        )
+        # new_current_temp_c = building_model.integrate_temperature_change(
+        #     current_temp_c, current_weather, hvac_input, controller.step_size_seconds, ventilation_heat_load * 1000
+        # )
+        new_current_temp_c = delta_temp_linear + current_temp_c 
         print(f"New temp linear: {current_temp_c + delta_temp_linear}")
         print(f"New temp: {new_current_temp_c} old: {current_temp_c}, hvac: {hvac_input}, \
             hvac output w {building_model.heating_model.power_produced(hvac_input, current_temp_c, current_weather.outdoor_temperature)} ventilation load w: {ventilation_heat_load * 1000}")

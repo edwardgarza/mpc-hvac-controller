@@ -122,7 +122,8 @@ class RoomConfig(BaseModel):
 
 class BuildingConfig(BaseModel):
     """Configuration for the entire building"""
-    heat_capacity: float = Field(default=1000000.0, ge=100000.0, le=10000000.0, description="Building heat capacity in J/K")
+    heat_capacity: float = Field(default=1000000.0, ge=100000.0, le=10 ** 10, description="Building heat capacity in J/K")
+    baseload_interior_heating: float = Field(default=500.0, ge=0, description="Building baseload heating from lights, appliances, etc in W")
     room: RoomConfig = Field(default_factory=RoomConfig, description="Room configuration")
     walls: List[WallConfig] = Field(default_factory=list, description="Wall configurations")
     windows: List[WindowConfig] = Field(default_factory=list, description="Window configurations")

@@ -115,10 +115,9 @@ class HvacController:
             start_time_hours_offset: Starting time for prediction (hours from weather series start)
             
         Returns:
-            Tuple of (co2_trajectory, temp_trajectory)
+            Tuple of (co2_trajectory, temp_trajectory), including the current time
         """
 
-        # TODO: revisit if this first data point should be in the trajectory or not
         co2_trajectory = [initial_co2_ppm]
         temp_trajectory = [initial_temp_c]
         
@@ -176,7 +175,7 @@ class HvacController:
         return 1 if not self.use_boolean_occupant_comfort else self.set_points.interpolate_step_occupancy_count(time_hours_offset) > 0
 
 
-    def comfort_cost(self, temperature_c: float, time_hours_offset: float = 0.0) -> float:
+    def comfort_cost(self, temperature_c: float, time_hours_offset: float = 0.0) -> Tuple[bool, float]:
         """
         Calculate comfort cost based on temperature deviation from target
         
@@ -185,12 +184,12 @@ class HvacController:
             time_hours: Current time for dynamic setpoint lookup
             
         Returns:
-            Comfort cost
+            Tuple(above_temp, Comfort cost)
         """
         # Use dynamic setpoints if provided, otherwise use saved schedule
         target_temp = self.set_points.interpolate_step_temp(time_hours_offset)
         deviation = abs(temperature_c - target_temp)
-        return self.comfort_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset)
+        return (temperature_c - target_temp > 0, self.comfort_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset))
     
     def co2_cost(self, co2_ppm: float, time_hours_offset: float = 0.0) -> float:
         """
@@ -261,7 +260,7 @@ class HvacController:
         n_ventilation_vars = self.n_ventilation * self.n_steps
         ventilation_sequences, hvac_sequences = self.convert_flat_controls_to_ventillation_and_hvac(control_vector, 0)
         
-        # Predict trajectories
+        # Predict trajectories - note that co2 and temp trajectories include the starting step
         co2_trajectory, temp_trajectory = self.predict_trajectories(
                                             current_co2_ppm, 
                                             current_temp_c, 
@@ -270,18 +269,30 @@ class HvacController:
                                             weather_series_hours, 
                                             start_time_hours_offset
                                         )
+
         self.co2_trajectory = co2_trajectory
         self.temp_trajectory = temp_trajectory
         total_cost = 0.0
-        
+        accumulated_temp_error = 0
+        accumulated_co2_error = 0
+        last_step_above_temp = True
         for i in range(self.n_steps):
             # CO2 cost
             current_time_offset = i * self.step_size_hours + start_time_hours_offset
-            co2_cost = self.co2_cost(co2_trajectory[i], current_time_offset) * self.step_size_seconds
-            
+            co2_cost = self.co2_cost(co2_trajectory[i + 1], current_time_offset) * self.step_size_seconds
+            if co2_cost > 0:
+                accumulated_co2_error += co2_cost / 10
+            else:
+                accumulated_co2_error = 0
             # Comfort cost
-            comfort_cost = self.comfort_cost(temp_trajectory[i], current_time_offset) * self.step_size_seconds
-            
+            above_temp, comfort_cost_per_s = self.comfort_cost(temp_trajectory[i + 1], current_time_offset) 
+            comfort_cost = comfort_cost_per_s * self.step_size_seconds
+            if above_temp == last_step_above_temp:
+                accumulated_temp_error += comfort_cost / 10
+            else: 
+                accumulated_temp_error = 0        
+            last_step_above_temp = above_temp
+
             # Energy cost
             ventilation_inputs = [ventilation_sequences[j][i] for j in range(self.n_ventilation)]
             hvac_input = hvac_sequences[0][i]
@@ -294,18 +305,12 @@ class HvacController:
                 current_time_offset
             ) * self.step_size_seconds * self.energy_weight
             
-            cost_of_step = co2_cost + comfort_cost + energy_cost
+            cost_of_step = co2_cost + comfort_cost + energy_cost + accumulated_temp_error + accumulated_co2_error
             total_cost += cost_of_step
-            if i > 0:
-                for vent in range(self.n_ventilation):
-                    control_change = ventilation_sequences[vent][i] - ventilation_sequences[vent][i - 1]
-                    total_cost += 0.0001 * (control_change ** 2)
-                for h in range(self.n_hvac):
-                    hvac_change = hvac_sequences[h][i] - hvac_sequences[h][i - 1]
-                    total_cost += 0.0001 * (hvac_change ** 2)
 
+        # double count last step's cost
         if self.use_soft_boundary_condition:
-            total_cost += self.n_steps / 10
+            total_cost += cost_of_step
 
         if self.smooth_controls:
             total_cost += self.cost_smoothed_controls(ventilation_sequences, hvac_sequences)
@@ -321,21 +326,21 @@ class HvacController:
         for i in range(1, self.n_steps):
                 for vent in range(self.n_ventilation):
                     control_change = ventilation_sequences[vent][i] - ventilation_sequences[vent][i - 1]
-                    total_cost += 0.001 * (control_change ** 2)
+                    total_costs += control_change ** 2
                 for h in range(self.n_hvac):
                     hvac_change = hvac_sequences[h][i] - hvac_sequences[h][i - 1]
-                    total_cost += 0.0001 * (hvac_change ** 2)
+                    total_costs += 0.1 * (hvac_change ** 2)
 
         # Control smoothing penalty from last executed value
         if self.u_prev is not None:
             for i in range(self.n_ventilation):
                 control_change = ventilation_sequences[i][0] - self.u_prev[i]
-                total_cost += 0.0001 * (control_change ** 2)
+                total_cost += control_change ** 2
             
             for h in range(self.n_hvac):
                 hvac_change = hvac_sequences[h][0] - self.u_prev[self.n_ventilation + h]
-                total_cost += 0.0001 * (hvac_change ** 2)
-        return total_costs
+                total_cost += 0.1 * (hvac_change ** 2)
+        return total_costs / 100_000
 
     def optimize_controls(self,
                          current_co2_ppm: float,
@@ -383,7 +388,7 @@ class HvacController:
             args=(current_co2_ppm, current_temp_c, weather_series_hours, 0),
             method=self.optimization_method,
             bounds=bounds,
-            options={'maxiter': self.max_iterations},
+            options={'maxiter': self.max_iterations, 'disp': True},
         )
 
         if not result.success:

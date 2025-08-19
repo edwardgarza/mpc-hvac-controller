@@ -160,7 +160,8 @@ def create_building_model(building_config: BuildingConfig) -> BuildingModel:
     return BuildingModel(
         thermal_models=thermal_models,
         heating_model=heating_model,
-        heat_capacity=building_config.heat_capacity
+        heat_capacity=building_config.heat_capacity,
+        baseload_interior_heating=building_config.baseload_interior_heating
     )
 
 

@@ -196,6 +196,7 @@ def initialize_controller():
         step_size_hours=controller_config.step_size_hours,
         optimization_method=controller_config.optimization_method,
         max_iterations=controller_config.max_iterations,
+        smooth_controls=True
     )
     
     # Load and translate weekly schedules if available
@@ -384,7 +385,7 @@ async def get_prediction(request: PredictionRequest):
         global last_weather_series
         last_weather_series = weather_series
         # Run optimization in a thread pool to avoid blocking
-        print("About to run predict")
+        print("About to run optimization")
             # Run the optimization in a separate thread
 
         loop = asyncio.get_event_loop()
@@ -399,6 +400,7 @@ async def get_prediction(request: PredictionRequest):
                 current_time
             )
         
+        print("Finished running optimization")
         # Get next prediction array
         next_prediction = controller.get_next_prediction()
         
@@ -442,7 +444,7 @@ async def get_prediction(request: PredictionRequest):
                     "wind_speed": last_weather.wind_speed,
                     "solar_intensity_w": last_weather.irradiation.intensity
                 })
-        
+
         return PredictionResponse(
             next_prediction=next_prediction if next_prediction is not None else None,
             time_horizon_hours=time_horizon,
