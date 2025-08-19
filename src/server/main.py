@@ -196,7 +196,6 @@ def initialize_controller():
         step_size_hours=controller_config.step_size_hours,
         optimization_method=controller_config.optimization_method,
         max_iterations=controller_config.max_iterations,
-        smooth_controls=True
     )
     
     # Load and translate weekly schedules if available

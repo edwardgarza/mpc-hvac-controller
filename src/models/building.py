@@ -298,7 +298,7 @@ class BuildingModel(ThermalTransfer):
         Returns:
             Total heat flow in watts (negative = heat flowing out of building)
         """
-        total_power = self.baseload_interior_heating
+        total_power = 0
         for model in self.thermal_models:
             power_change = model.powerflow(*args)
             if power_change is not None:
@@ -332,7 +332,7 @@ class BuildingModel(ThermalTransfer):
         )
         
         total_heat_flow = self.powerflow(inside_temperature, weather_conditions)
-        return (total_heat_flow + hvac_power_produced + additional_power_input) / self.heat_capacity
+        return (total_heat_flow + hvac_power_produced + additional_power_input + self.baseload_interior_heating) / self.heat_capacity
 
     def integrate_temperature_change(self,
                                    initial_temperature: float,
