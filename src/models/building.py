@@ -210,7 +210,7 @@ class PierAndBeam(WallModel, FloorModel):
         Returns:
             Heat flow in watts (positive = heat flowing into building)
         """
-        return (inside_temperature - weather_conditions.outdoor_temperature) * self.area_sq_m / self._rvalue()
+        return (weather_conditions.outdoor_temperature - inside_temperature) * self.area_sq_m / self._rvalue()
 
 
 class WindowModel(ThermalTransfer):

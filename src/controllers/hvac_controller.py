@@ -281,14 +281,14 @@ class HvacController:
             current_time_offset = i * self.step_size_hours + start_time_hours_offset
             co2_cost = self.co2_cost(co2_trajectory[i + 1], current_time_offset) * self.step_size_seconds
             if co2_cost > 0:
-                accumulated_co2_error += co2_cost / 10
+                accumulated_co2_error += co2_cost / (self.n_steps ** 2)
             else:
                 accumulated_co2_error = 0
             # Comfort cost
             above_temp, comfort_cost_per_s = self.comfort_cost(temp_trajectory[i + 1], current_time_offset) 
             comfort_cost = comfort_cost_per_s * self.step_size_seconds
             if above_temp == last_step_above_temp:
-                accumulated_temp_error += comfort_cost / 10
+                accumulated_temp_error += comfort_cost / (self.n_steps ** 2)
             else: 
                 accumulated_temp_error = 0        
             last_step_above_temp = above_temp
@@ -305,7 +305,8 @@ class HvacController:
                 current_time_offset
             ) * self.step_size_seconds * self.energy_weight
             
-            cost_of_step = co2_cost + comfort_cost + energy_cost + accumulated_temp_error + accumulated_co2_error
+            # cost_of_step = co2_cost + comfort_cost + energy_cost + accumulated_temp_error + accumulated_co2_error
+            cost_of_step = co2_cost + comfort_cost + energy_cost
             total_cost += cost_of_step
 
         # double count last step's cost
@@ -323,24 +324,24 @@ class HvacController:
         non-linearity.
         '''
         total_costs = 0
-        for i in range(1, self.n_steps):
+        for i in range(2, self.n_steps):
                 for vent in range(self.n_ventilation):
                     control_change = ventilation_sequences[vent][i] - ventilation_sequences[vent][i - 1]
                     total_costs += control_change ** 2
                 for h in range(self.n_hvac):
                     hvac_change = hvac_sequences[h][i] - hvac_sequences[h][i - 1]
-                    total_costs += 0.1 * (hvac_change ** 2)
+                    total_costs +=  (hvac_change ** 2) / 10 ** 5 
 
         # Control smoothing penalty from last executed value
         if self.u_prev is not None:
             for i in range(self.n_ventilation):
                 control_change = ventilation_sequences[i][0] - self.u_prev[i]
-                total_cost += control_change ** 2
+                total_costs += control_change ** 2
             
             for h in range(self.n_hvac):
                 hvac_change = hvac_sequences[h][0] - self.u_prev[self.n_ventilation + h]
-                total_cost += 0.1 * (hvac_change ** 2)
-        return total_costs / 100_000
+                total_costs += 0.1 * (hvac_change ** 2)
+        return total_costs / 10 ** 3
 
     def optimize_controls(self,
                          current_co2_ppm: float,

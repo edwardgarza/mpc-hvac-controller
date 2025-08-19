@@ -8,6 +8,7 @@ import dateutil.parser
 import requests
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+import math
 import base64
 from typing import List
 
@@ -17,10 +18,10 @@ BASE_URL = "http://localhost:8000"
 def create_sample_weather_data(start_time: datetime) -> List:
     """Create sample weather data for testing"""
     weather_data = []
-    for hour in range(0, 40, 5):  # 0 to 24 hours
+    for hour in range(0, 40, 5):  
         weather_data.append({
             "time": datetime.datetime.isoformat(datetime.timedelta(hours=hour) + start_time),
-            "outdoor_temperature": 15.0 + 5.0 * (hour / 6.0),  # Varying temperature
+            "outdoor_temperature": 15.0 + 5.0 * math.sin(hour / 6.0),
             "wind_speed": 5.0,
             "solar_altitude_rad": 0.5,
             "solar_azimuth_rad": 0.0,

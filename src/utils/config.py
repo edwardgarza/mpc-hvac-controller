@@ -89,6 +89,13 @@ class ERVConfig(BaseModel):
     heat_recovery_efficiency: float = Field(default=0.7, ge=0.0, le=1.0, description="Heat recovery efficiency (0-1)")
     fan_power_w_m3_per_hour: float = Field(default=0.3, ge=0.0, description="Fan power per m³/h")
 
+
+class HRVConfig(BaseModel):
+    """Configuration for HRV (Heat Recovery Ventilator)"""
+    max_airflow_m3_per_hour: float = Field(default=200.0, ge=0.0, description="Max airflow in m³/h")
+    heat_recovery_efficiency: float = Field(default=0.7, ge=0.0, le=1.0, description="Heat recovery efficiency (0-1)")
+    fan_power_w_m3_per_hour: float = Field(default=0.3, ge=0.0, description="Fan power per m³/h")
+
 class NaturalVentilationConfig(BaseModel):
     """Configuration for natural ventilation/infiltration"""
     infiltration_rate_ach: float = Field(default=0.2, ge=0.0, description="Infiltration rate (air changes per hour)")
@@ -96,9 +103,10 @@ class NaturalVentilationConfig(BaseModel):
 
 class VentilationConfig(BaseModel):
     """Configuration for all ventilation types"""
-    window_ventilations: List[WindowVentilationConfig] = Field(default_factory=lambda: [WindowVentilationConfig()])
-    ervs: List[ERVConfig] = Field(default_factory=lambda: [ERVConfig()])
-    natural_ventilations: List[NaturalVentilationConfig] = Field(default_factory=lambda: [NaturalVentilationConfig()])
+    window_ventilations: Optional[List[WindowVentilationConfig]] = Field(default_factory=lambda: None)
+    ervs: Optional[List[ERVConfig]] = Field(default_factory=lambda: None)
+    hrvs: Optional[List[HRVConfig]] = Field(default_factory=lambda: None)
+    natural_ventilations: List[NaturalVentilationConfig] = Field(default_factory=lambda: None)
 
 class CO2SourceConfig(BaseModel):
     """Configuration for CO2 sources (occupants, pets, equipment, etc.)"""

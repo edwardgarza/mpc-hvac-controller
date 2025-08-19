@@ -35,7 +35,7 @@ from src.utils.config import (
 from src.utils.factory import create_building_model, create_co2_sources
 from src.controllers.hvac_controller import HvacController
 from src.controllers.ventilation.models import (
-    WindowVentilationModel, ERVVentilationModel, NaturalVentilationModel, CO2Source,
+    HRVVentilationModel, WindowVentilationModel, ERVVentilationModel, NaturalVentilationModel, CO2Source,
     RoomCO2Dynamics
 )
 from src.models.weather import WeatherConditions, SolarIrradiation
@@ -129,32 +129,46 @@ def create_ventilation_models(building_config):
     """Create ventilation models from building configuration"""
     # Create window ventilation models
     window_ventilations = []
-    for window_config in building_config.ventilation.window_ventilations:
-        window_vent = WindowVentilationModel(
-            max_airflow_m3_per_hour=window_config.max_airflow_m3_per_hour
-        )
-        window_ventilations.append(window_vent)
-    
+    if building_config.ventilation.window_ventilations:
+        for window_config in building_config.ventilation.window_ventilations:
+            window_vent = WindowVentilationModel(
+                max_airflow_m3_per_hour=window_config.max_airflow_m3_per_hour
+            )
+            window_ventilations.append(window_vent)
+
     # Create ERV models
+
     erv_ventilations = []
-    for erv_config in building_config.ventilation.ervs:
-        erv_vent = ERVVentilationModel(
-            heat_recovery_efficiency=erv_config.heat_recovery_efficiency,
-            fan_power_w_m3_per_hour=erv_config.fan_power_w_m3_per_hour,
-            max_airflow_m3_per_hour=erv_config.max_airflow_m3_per_hour
-        )
-        erv_ventilations.append(erv_vent)
-    
+    if building_config.ventilation.ervs:
+        for erv_config in building_config.ventilation.ervs:
+            erv_vent = ERVVentilationModel(
+                heat_recovery_efficiency=erv_config.heat_recovery_efficiency,
+                fan_power_w_m3_per_hour=erv_config.fan_power_w_m3_per_hour,
+                max_airflow_m3_per_hour=erv_config.max_airflow_m3_per_hour
+            )
+            erv_ventilations.append(erv_vent)
+
+    hrv_ventilations = []
+    if building_config.ventilation.hrvs:
+        for hrv_config in building_config.ventilation.hrvrs:
+            hrv_vent = HRVVentilationModel(
+                heat_recovery_efficiency=hrv_config.heat_recovery_efficiency,
+                fan_power_w_m3_per_hour=hrv_config.fan_power_w_m3_per_hour,
+                max_airflow_m3_per_hour=hrv_config.max_airflow_m3_per_hour
+            )
+            hrv_ventilations.append(hrv_vent)
+
     # Create natural ventilation models
     natural_ventilations = []
-    for natural_config in building_config.ventilation.natural_ventilations:
-        natural_vent = NaturalVentilationModel(
-            indoor_volume_m3=natural_config.indoor_volume_m3,
-            infiltration_rate_ach=natural_config.infiltration_rate_ach
-        )
-        natural_ventilations.append(natural_vent)
+    if building_config.ventilation.natural_ventilations:
+        for natural_config in building_config.ventilation.natural_ventilations:
+            natural_vent = NaturalVentilationModel(
+                indoor_volume_m3=natural_config.indoor_volume_m3,
+                infiltration_rate_ach=natural_config.infiltration_rate_ach
+            )
+            natural_ventilations.append(natural_vent)
     
-    controllable_ventilations = window_ventilations + erv_ventilations
+    controllable_ventilations = window_ventilations + erv_ventilations + hrv_ventilations
     return controllable_ventilations, natural_ventilations
 
 
