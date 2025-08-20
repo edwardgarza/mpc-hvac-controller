@@ -42,6 +42,72 @@ All units are in SI.
 2. Power is not considered a factor
 3. Different sources of energy are treated the same (locally generated solar and grid usage are fungible. This is implicitly assumed in (1))
 
+<h2>Installtion</h2>
+
+<h3>Add-On in Home Assistant</h3>
+This can be installed as an add-on using home assistant. It is registered to port 8000 and can be installed by simply using this repo as the add-on source. Then the webpage can be accessed via http://homeassistantip:8000.
+<br><br>
+
+**Please note**: optimizaion is currently quite slow. 5-10 minutes is quite possible with 3 controllable variables and 48 steps (0.5 hour step size and 24 hour horizon). 
+
+<h3>Sending Requests to the Add-On</h3>
+There are two changes needed to actually send data to the add-on. A REST command has to be registered in configuration.yaml like
+
+```
+rest_command:
+  send_prediction_request:
+    url: http://localhost:8000/predict
+    method: POST
+    content_type: application/json
+    payload: "{{ prediction_payload }}"
+    timeout: 300
+```
+And then set up an automation like this to periodically send requests 
+
+```
+alias: Make MPC Prediction API Request
+description: ""
+triggers:
+  - trigger: time_pattern
+    hours: /1
+    id: time
+conditions: []
+actions:
+  - action: weather.get_forecasts
+    metadata: {}
+    data:
+      type: hourly
+    target:
+      entity_id: weather.forecast_home
+    response_variable: forecast_response
+  
+  - action: rest_command.send_prediction_request
+    data:
+      prediction_payload: >
+
+        {% set forecasts =
+        forecast_response["weather.forecast_home"]["forecast"] %} {
+          "current_co2_ppm": {{ states("co2_sensor") | float }},
+          "current_temp_c": {{ ((states("sensor.thermostat_temperature") | float + states("other temperature sensor") | float) / 2 - 32) * 5/9 }},
+          "current_time": "{{ now().isoformat() }}",
+          "weather_time_series": [
+            {% for f in forecasts %}
+              {
+                "time": "{{ f.datetime }}",
+                "outdoor_temperature": {{ (f.temperature - 32) * 5/9 }},
+                "wind_speed": {{ f.wind_speed }},
+                "solar_altitude_rad": 0.0,
+                "solar_azimuth_rad": 0.0,
+                "solar_intensity_w": 0.0,
+                "ground_temperature": 12.0
+              }{% if not loop.last %},{% endif %}
+            {% endfor %}
+          ]
+        }
+      response_variable: response
+```
+
+
 <h2>Building Modeling</h2>
 
 Buildings will be modeled as easily as possible to begin, with increasing complexity depending on desired accuracy.
@@ -90,13 +156,23 @@ For cooling I will use the same formula for the COP - 1 and ignore any latent co
 ### Running Examples
 
 ```bash
+# specific use cases to get a sense of the benefits
+# example of a hot tub with only a few hours of possible occupancy a day and variable electric pricing
+python3 example_prediction_hot_tub.py
+
+# building is only occupied a few hours a day
+python3 example_periodically_occupied_building.py
+
 # Main integrated HVAC example (can take ~ 10 min to complete)
 python3 example_hvac_controller.py
 
 # running the server locally
 python3 start_server.py --host 0.0.0.0 --port 8000 --config-file ./data/hvac_config.json
 
-Then run /tests/test_server/integration_test_prediction_api.py to send APIs to the server and see the best planned trajectory
+#Then run
+/tests/test_server/integration_test_prediction_api.py
+
+#to send APIs to the server and see the best planned trajectory
 ```
 
 ## Configuration
