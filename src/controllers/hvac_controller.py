@@ -41,7 +41,8 @@ class HvacController:
                  use_boolean_occupant_comfort: bool = True,
                  use_soft_boundary_condition: bool = True, 
                  smooth_controls: bool = False,
-                 dynamically_lengthen_step_sizes: bool = False): 
+                 dynamically_lengthen_step_sizes: bool = False, 
+                 co2_m3_per_hr_per_occupant = 0.02): 
         """
         Initialize integrated HVAC controller
         
@@ -70,8 +71,9 @@ class HvacController:
         self.max_iterations = max_iterations
         self.use_boolean_occupant_comfort = use_boolean_occupant_comfort
         self.use_soft_boundary_condition = use_soft_boundary_condition
-        self.dynamically_lengthen_step_sizes = dynamically_lengthen_step_sizes
         self.smooth_controls = smooth_controls
+        self.dynamically_lengthen_step_sizes = dynamically_lengthen_step_sizes
+        self.co2_m3_per_hr_per_occupant = co2_m3_per_hr_per_occupant
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
         self.steps, self.cumulative_steps = self.generate_time_steps(self.step_size_hours, self.horizon_hours,  self.dynamically_lengthen_step_sizes)
@@ -138,8 +140,11 @@ class HvacController:
             weather = weather_series_hours.interpolate(current_time_offset)
             
             # use linear dynamics for better convergence
-            # current_co2 = self.room_dynamics.co2_levels_in_t(current_co2, ventilation_inputs, self.step_size_seconds)
-            current_co2 = self.room_dynamics.co2_change_per_s(current_co2, ventilation_inputs) * self.step_size_seconds + current_co2
+            current_co2 = self.room_dynamics.co2_change_per_s(
+                current_co2, 
+                ventilation_inputs, 
+                self.co2_m3_per_hr_per_occupant * self.set_points.interpolate_step_occupancy_count(current_time_offset)
+            ) * self.step_size_seconds + current_co2
             
             # Predict temperature change using building model
             # Calculate ventilation heat load (additional to building model)

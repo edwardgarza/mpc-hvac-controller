@@ -8,11 +8,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import dateutil.parser
 import numpy as np
-from src.controllers.ventilation.models import (
-    RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
-    ERVVentilationModel, NaturalVentilationModel, CO2Source
-)
-from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
+from src.controllers.ventilation.models import RoomCO2Dynamics
+
+from src.models.building import BuildingModel, WallModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
 from src.controllers.hvac_controller import HvacController
 from src.models.weather import WeatherConditions, SolarIrradiation
@@ -23,10 +21,8 @@ from src.utils.timeseries import TimeSeries
 def create_example_room():
     
     # no co2 in a hot tub
-    occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.00)
     room_dynamics = RoomCO2Dynamics(
         volume_m3=100.0,
-        sources=[occupant_source],
         controllable_ventilations=[],
         natural_ventilations=[],
         outdoor_co2_ppm=400
@@ -98,10 +94,11 @@ def run_hot_tub_example():
         horizon_hours=24.0,
         co2_weight=0.0,
         energy_weight=300.0,
-        comfort_weight=0.01,
+        comfort_weight=0.03,
         step_size_hours=0.5,
         optimization_method="SLSQP",
         max_iterations=500,
+        co2_m3_per_hr_per_occupant=0
     )
 
     # assume hot tub is only occupied between 18 and 22

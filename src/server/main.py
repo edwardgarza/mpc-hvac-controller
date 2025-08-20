@@ -29,13 +29,13 @@ import uvicorn
 
 # Import our modules
 from src.utils.config import (
-    ControllerConfig, BuildingConfig, VentilationConfig, CO2SourceConfig, 
+    ControllerConfig, BuildingConfig, VentilationConfig, 
     get_controller_config, get_building_config, Config, FullConfig, config
 )
-from src.utils.factory import create_building_model, create_co2_sources
+from src.utils.factory import create_building_model
 from src.controllers.hvac_controller import HvacController
 from src.controllers.ventilation.models import (
-    HRVVentilationModel, WindowVentilationModel, ERVVentilationModel, NaturalVentilationModel, CO2Source,
+    HRVVentilationModel, WindowVentilationModel, ERVVentilationModel, NaturalVentilationModel,
     RoomCO2Dynamics
 )
 from src.models.weather import WeatherConditions, SolarIrradiation
@@ -88,7 +88,6 @@ class PredictionRequest(BaseModel):
     current_temp_c: float
     current_time: str = Field(description="Current time in ISO format (e.g., '2024-01-15T09:30:00Z')")
     weather_time_series: List[WeatherTimeSeries]
-    horizon_hours: Optional[float] = Field(default=None, description="Custom horizon in hours (uses controller default if not specified)")
 
 
 class PredictionResponse(BaseModel):
@@ -187,13 +186,10 @@ def initialize_controller():
     # Create ventilation models from config
     controllable_ventilations, natural_ventilations = create_ventilation_models(building_config)
     
-    # Create CO2 sources from config
-    co2_sources = create_co2_sources(building_config.room.co2_sources)
-    
+    # Create CO2 sources from config    
     # Create room dynamics
     room_dynamics = RoomCO2Dynamics(
         volume_m3=building_config.room.volume_m3,
-        sources=co2_sources,
         controllable_ventilations=controllable_ventilations,
         natural_ventilations=natural_ventilations,
         outdoor_co2_ppm=building_config.room.outdoor_co2_ppm

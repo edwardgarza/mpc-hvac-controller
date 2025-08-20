@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from src.controllers.ventilation.models import (
     RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
-    ERVVentilationModel, NaturalVentilationModel, CO2Source
+    ERVVentilationModel, NaturalVentilationModel
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
@@ -30,13 +30,9 @@ def create_example_room():
     erv_vent = ERVVentilationModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
     natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.2)
     
-    # Create CO2 sources (occupants)
-    occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.02)  # 2 people
-    
     # Create room dynamics
     room_dynamics = RoomCO2Dynamics(
         volume_m3=100.0,
-        sources=[occupant_source],
         controllable_ventilations=[window_vent, erv_vent],
         natural_ventilations=[natural_vent],
         outdoor_co2_ppm=400
@@ -237,10 +233,9 @@ def run_hvac_example():
         # Apply first step of controls
         ventilation_inputs = ventilation_controls
         hvac_input = hvac_controls[0]
-        
+        new_co2_ppm = current_co2_ppm
         # Step forward in time
-        # CO2 change
-        new_co2_ppm = room_dynamics.co2_levels_in_t(current_co2_ppm, ventilation_inputs, controller.step_size_seconds)
+        new_co2_ppm += room_dynamics.co2_change_per_s(current_co2_ppm, ventilation_inputs, controller.co2_m3_per_hr_per_occupant) * controller.step_size_seconds
         print(f"New CO2: {new_co2_ppm} old: {current_co2_ppm}, ventilation: {ventilation_inputs}")
         current_co2_ppm = new_co2_ppm
         # Temperature change

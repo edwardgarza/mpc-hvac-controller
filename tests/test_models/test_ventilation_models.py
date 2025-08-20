@@ -7,36 +7,9 @@ import unittest
 import numpy as np
 import math
 from src.controllers.ventilation.models import (
-    RoomCO2Dynamics, CO2Source, WindowVentilationModel, 
+    RoomCO2Dynamics, WindowVentilationModel, 
     HRVVentilationModel, ERVVentilationModel, NaturalVentilationModel
 )
-
-
-class TestCO2Source(unittest.TestCase):
-    """Test CO2 source behavior"""
-    
-    def test_co2_production_rate(self):
-        """Test CO2 production rate is consistent"""
-        source = CO2Source(co2_production_rate_m3_per_hour=0.02)
-        
-        # Should return the same rate regardless of time
-        self.assertEqual(source.co2_production_rate(0), 0.02)
-        self.assertEqual(source.co2_production_rate(100), 0.02)
-        self.assertEqual(source.co2_production_rate(), 0.02)
-    
-    def test_co2_production_rate_units(self):
-        """Test CO2 production rate has correct units"""
-        # 0.02 m³/hour is typical for one person
-        source = CO2Source(co2_production_rate_m3_per_hour=0.02)
-        
-        # Convert to ppm/s for a 100 m³ room
-        room_volume_m3 = 100.0
-        production_ppm_per_s = (source.co2_production_rate() / room_volume_m3) * 1e6 / 3600
-        
-        # Should be around 0.0056 ppm/s for one person in 100 m³ room
-        # 0.02 m³/hour = 0.02/3600 m³/s = 0.00000556 m³/s
-        # ppm = (0.00000556 / 100) * 1e6 = 0.0556 ppm/s
-        self.assertAlmostEqual(production_ppm_per_s, 0.0556, delta=0.001)
 
 
 class TestVentilationModels(unittest.TestCase):
@@ -126,9 +99,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         """Set up test fixtures"""
         self.room_volume_m3 = 100.0
         self.outdoor_co2_ppm = 400.0
-        
-        # Create CO2 sources
-        self.co2_sources = [CO2Source(co2_production_rate_m3_per_hour=0.02)]
+        self.co2_production_rate_m3_per_hr = 0.02
         
         # Create ventilation models
         self.window_vent = WindowVentilationModel()
@@ -141,7 +112,6 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         # Create room dynamics
         self.room_dynamics = RoomCO2Dynamics(
             volume_m3=self.room_volume_m3,
-            sources=self.co2_sources,
             controllable_ventilations=[self.window_vent],
             natural_ventilations=[self.natural_vent],
             outdoor_co2_ppm=int(self.outdoor_co2_ppm)
@@ -153,7 +123,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         control_inputs = [50.0]  # 50 m³/hour window ventilation
         
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
         
         # Should be a reasonable rate (typically -1 to +1 ppm/s)
@@ -166,17 +136,16 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         control_inputs = [0.0]  # No window ventilation
         
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
 
-        co2_production_rate_m3_per_second = sum([x.co2_production_rate() for x in self.room_dynamics.sources]) / 3600
+        co2_production_rate_m3_per_second = self.co2_production_rate_m3_per_hr / 3600
 
         # since the starting co2 is the same as the outdoor co2, the ventilation rate is irrelevant        
         calc_co2_rate = co2_production_rate_m3_per_second / self.room_dynamics.volume_m3 * 10 ** 6
 
         # CO2 should increase (positive change rate)
         self.assertAlmostEqual(co2_change_per_s, calc_co2_rate)
-        self.assertAlmostEqual(self.room_dynamics.co2_levels_in_t(initial_co2_ppm, control_inputs, 15 * 60), 400 + co2_change_per_s * 15 * 60, delta=1.0)
     
     def test_co2_change_with_high_ventilation(self):
         """Test CO2 decreases when ventilation is high"""
@@ -184,9 +153,9 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         control_inputs = [200.0]  # High ventilation
         
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
-        co2_production_rate_m3_per_second = sum([x.co2_production_rate() for x in self.room_dynamics.sources]) / 3600
+        co2_production_rate_m3_per_second = self.co2_production_rate_m3_per_hr / 3600
         co2_prod_ppm_s = co2_production_rate_m3_per_second * 10 ** 6
         airflow = self.room_dynamics.controllable_ventilations[0].airflow_m3_per_hour(control_inputs[0])
         airflow += self.room_dynamics.natural_ventilations[0].airflow_m3_per_hour()
@@ -199,7 +168,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
     def test_co2_equilibrium_calculation(self):
         """Test CO2 equilibrium level calculation"""
         # Calculate equilibrium analytically
-        total_production = sum(s.co2_production_rate() for s in self.co2_sources)
+        total_production = self.co2_production_rate_m3_per_hr
         total_airflow = 50.0  # 50 m³/hour ventilation
         
         # Equilibrium: production = removal
@@ -214,7 +183,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         # Test with room dynamics
         control_inputs = [total_airflow]
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            expected_equilibrium, control_inputs
+            expected_equilibrium, control_inputs, self.co2_production_rate_m3_per_hr
         )
         
         # At equilibrium, change should be close to zero
@@ -232,7 +201,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         
         for hour in range(10):  # 10 hours
             co2_change_per_s = self.room_dynamics.co2_change_per_s(
-                current_co2, control_inputs
+                current_co2, control_inputs, self.co2_production_rate_m3_per_hr
             )
             co2_change = co2_change_per_s * time_step_seconds
             current_co2 += co2_change
@@ -244,34 +213,12 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         # Final CO2 should be reasonable (between outdoor and initial)
         self.assertGreater(current_co2, self.outdoor_co2_ppm)
         self.assertLess(current_co2, initial_co2_ppm)
-    
-    def test_co2_levels_in_t_consistency(self):
-        """Test co2_levels_in_t gives consistent results with co2_change_per_s"""
-        initial_co2_ppm = 800.0
-        control_inputs = [50.0]
-        time_step_seconds = 3600  # 1 hour
         
-        # Method 1: Use co2_levels_in_t
-        final_co2_method1 = self.room_dynamics.co2_levels_in_t(
-            initial_co2_ppm, control_inputs, time_step_seconds
-        )
-        
-        # Method 2: Use co2_change_per_s and integrate
-        co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
-        )
-        co2_change = co2_change_per_s * time_step_seconds
-        final_co2_method2 = initial_co2_ppm + co2_change
-        
-        # Results should be similar (within 5%)
-        self.assertAlmostEqual(final_co2_method1, final_co2_method2, delta=0.05 * initial_co2_ppm)
-    
     def test_multiple_ventilation_systems(self):
         """Test CO2 dynamics with multiple ventilation systems"""
         # Create room with multiple ventilation systems
         room_dynamics = RoomCO2Dynamics(
             volume_m3=self.room_volume_m3,
-            sources=self.co2_sources,
             controllable_ventilations=[self.window_vent, self.hrv_vent],
             natural_ventilations=[self.natural_vent],
             outdoor_co2_ppm=int(self.outdoor_co2_ppm)
@@ -281,7 +228,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         control_inputs = [30.0, 20.0]  # Window + HRV
         
         co2_change_per_s = room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
         
         # Should have negative change rate (CO2 decreasing)
@@ -292,17 +239,17 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         initial_co2_ppm = 400.0
         control_inputs = [0.0]  # No ventilation
         
-        # Test co2_levels_in_t with zero ventilation
-        final_co2 = self.room_dynamics.co2_levels_in_t(
-            initial_co2_ppm, control_inputs, 3600
-        )
+        # Test co2 levels with zero ventilation
+        final_co2 = self.room_dynamics.co2_change_per_s(
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
+        ) * 3600 + initial_co2_ppm
         
         # CO2 should increase due to sources
         self.assertGreater(final_co2, initial_co2_ppm)
         
         # Test co2_change_per_s with zero ventilation
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
         
         # Should be positive (increasing CO2)
@@ -314,7 +261,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         control_inputs = [100.0]  # High ventilation
         
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
         
         # Should have large negative change rate
@@ -327,7 +274,7 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         control_inputs = [100.0]  # High ventilation
         
         co2_change_per_s = self.room_dynamics.co2_change_per_s(
-            initial_co2_ppm, control_inputs
+            initial_co2_ppm, control_inputs, self.co2_production_rate_m3_per_hr
         )
         
         # At outdoor CO2 level, should only increase due to sources
@@ -351,18 +298,17 @@ class TestRoomCO2Dynamics(unittest.TestCase):
         window_control = [ventilation_rate]
         hrv_control = [ventilation_rate]
         
-        window_co2_change = self.room_dynamics.co2_change_per_s(initial_co2, window_control)
+        window_co2_change = self.room_dynamics.co2_change_per_s(initial_co2, window_control, self.co2_production_rate_m3_per_hr)
         
         # Create room dynamics with HRV instead of window
         hrv_room = RoomCO2Dynamics(
             volume_m3=self.room_volume_m3,
-            sources=self.co2_sources,
             controllable_ventilations=[self.hrv_vent],
             natural_ventilations=[self.natural_vent],
             outdoor_co2_ppm=int(self.outdoor_co2_ppm)
         )
         
-        hrv_co2_change = hrv_room.co2_change_per_s(initial_co2, hrv_control)
+        hrv_co2_change = hrv_room.co2_change_per_s(initial_co2, hrv_control, self.co2_production_rate_m3_per_hr)
         
         # CO2 change should be similar (same airflow)
         self.assertAlmostEqual(window_co2_change, hrv_co2_change, delta=0.1)

@@ -108,25 +108,11 @@ class VentilationConfig(BaseModel):
     hrvs: Optional[List[HRVConfig]] = Field(default_factory=lambda: None)
     natural_ventilations: List[NaturalVentilationConfig] = Field(default_factory=lambda: None)
 
-class CO2SourceConfig(BaseModel):
-    """Configuration for CO2 sources (occupants, pets, equipment, etc.)"""
-    type: str = Field(default="occupant", description="Source type (occupant, pet, equipment, etc.)")
-    co2_production_rate_m3_per_hour: float = Field(default=0.01, ge=0.0, description="CO2 production rate in m³/hour")
-    count: int = Field(default=1, ge=0, description="Number of sources of this type")
-    
-    @field_validator('type')
-    @classmethod
-    def validate_source_type(cls, v):
-        valid_types = ['occupant', 'pet', 'equipment', 'other']
-        if v not in valid_types:
-            raise ValueError(f'type must be one of {valid_types}')
-        return v
 
 class RoomConfig(BaseModel):
     """Configuration for room/building interior"""
     volume_m3: float = Field(default=100.0, ge=1.0, le=10000.0, description="Indoor volume in m³")
     outdoor_co2_ppm: float = Field(default=400.0, ge=300.0, le=1000.0, description="Outdoor CO2 concentration in ppm")
-    co2_sources: List[CO2SourceConfig] = Field(default_factory=lambda: [CO2SourceConfig()], description="CO2 sources in the room")
 
 class BuildingConfig(BaseModel):
     """Configuration for the entire building"""

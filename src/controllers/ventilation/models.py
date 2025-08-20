@@ -9,18 +9,6 @@ from typing import List
 from src.models.weather import WeatherConditions
 
 
-class CO2Source:
-    """
-    Models a source of CO2 (e.g., occupants, pets, etc.)
-    """
-    def __init__(self, co2_production_rate_m3_per_hour: float):
-        self._co2_production_rate_m3_per_hour = co2_production_rate_m3_per_hour
-        
-    def co2_production_rate(self, t=None):
-        # Could be time-varying in the future
-        return self._co2_production_rate_m3_per_hour
-
-
 class BaseVentilationModel(ABC):
     """
     Abstract base class for controllable ventilation models
@@ -111,7 +99,6 @@ class BaseVentilationModel(ABC):
         air_density_kg_per_m3 = 1.225
         specific_heat_j_per_kg_k = 1005
         
-        # Convert ventilation rate to m³/s
         ventilation_rate_m3_per_s = ventilation_rate_m3_per_hour / 3600
         
         # Temperature difference
@@ -132,7 +119,8 @@ class NaturalVentilationModel(BaseVentilationModel):
     
     def __init__(self, 
                  indoor_volume_m3: float,
-                 infiltration_rate_ach: float = 0.1):
+                 infiltration_rate_ach: float = 0.1, 
+                 effective_leak_area_m3: float = 0.0):
         """
         Initialize natural ventilation model
         
@@ -142,8 +130,10 @@ class NaturalVentilationModel(BaseVentilationModel):
         """
         self.indoor_volume_m3 = indoor_volume_m3
         self.infiltration_rate_ach = infiltration_rate_ach
+        self.efla = effective_leak_area_m3
+        self.stack_coeficient_per_story = 0.000145 # default value
         self._max_airflow_m3_per_hour = infiltration_rate_ach * indoor_volume_m3
-    
+
     @property
     def infiltration_flow_rate_m3_per_hour(self):
         """Infiltration flow rate in m³/hour"""
@@ -156,6 +146,9 @@ class NaturalVentilationModel(BaseVentilationModel):
 
     def airflow_m3_per_hour(self, _ : float = 0.0):
         return self.infiltration_rate_ach * self.indoor_volume_m3
+
+    # def airflow_m3_per_hour(self, indoor_temp : float, outdoor_weather: WeatherConditions):
+    #     return self.efla / 10 ** 6 * 3.6 * math.sqrt(abs(indoor_temp - outdoor_weather.outdoor_temperature)) * self.stack_coeficient_per_story
 
     def energy_load_kw(self, _: float, 
                       indoor_temp_c: float, outdoor_temp_c: float) -> float:
@@ -342,36 +335,16 @@ class RoomCO2Dynamics:
     def __init__(
         self, 
         volume_m3: float, 
-        sources: List[CO2Source], 
         controllable_ventilations :List[BaseVentilationModel], 
         natural_ventilations: List[NaturalVentilationModel], 
         outdoor_co2_ppm: float = 400):
         self.volume_m3 = volume_m3
-        self.sources = sources 
         self.controllable_ventilations = controllable_ventilations  # list of ventilation models
         self.natural_ventilations = natural_ventilations  # list of ventilation models
         self.outdoor_co2_ppm = outdoor_co2_ppm
-
-    def co2_levels_in_t(self, indoor_co2_ppm, control_inputs, time_step_in_seconds):
-        total_production = sum(s.co2_production_rate(0) for s in self.sources) / 3600
-        total_airflow = 0.0
-        
-        # Add controllable ventilation
-        for v, u in zip(self.controllable_ventilations, control_inputs):
-            total_airflow += v.airflow_m3_per_hour(u) / 3600
-        
-        # Add natural ventilation (no control input needed)
-        for v in self.natural_ventilations:
-            total_airflow += v.airflow_m3_per_hour() / 3600
-        if total_airflow == 0:
-            return indoor_co2_ppm + total_production * 10 ** 6 / self.volume_m3 * time_step_in_seconds
-
-        asym_co2 = (total_production * 10 ** 6 + total_airflow * self.outdoor_co2_ppm) / total_airflow
-        return asym_co2 + (indoor_co2_ppm - asym_co2) * math.exp(-total_airflow * time_step_in_seconds / self.volume_m3)
     
-    def co2_change_per_s(self, co2_ppm, control_inputs, t=None):
+    def co2_change_per_s(self, co2_ppm, control_inputs, co2_production_m_3_hr):
         # control_inputs: list of control inputs for each controllable ventilation model
-        total_production = sum(s.co2_production_rate(t) for s in self.sources)
         total_airflow = 0.0
         
         # Add controllable ventilation
@@ -386,7 +359,7 @@ class RoomCO2Dynamics:
         air_exchange_per_s = total_airflow / 3600 / self.volume_m3
         
         # CO2 production rate (ppm/s)
-        production_ppm_per_s = (total_production / self.volume_m3) * 1e6 / 3600
+        production_ppm_per_s = (co2_production_m_3_hr / self.volume_m3) * 1e6 / 3600
         
         # CO2 removal rate (ppm/s) - exponential decay
         # The rate of CO2 removal is proportional to the current concentration difference

@@ -3,14 +3,13 @@ Factory for creating BuildingModel instances from configuration.
 """
 
 from typing import List
-from src.utils.config import BuildingConfig, WallConfig, WindowConfig, RoofConfig, FloorConfig, HeatingSystemConfig, CO2SourceConfig, RoomConfig
+from src.utils.config import BuildingConfig, WallConfig, WindowConfig, RoofConfig, FloorConfig, HeatingSystemConfig, RoomConfig
 from src.models.building import (
     BuildingModel, WallModel, WindowModel, RoofModel, SlabModel, PierAndBeam,
     Studs
 )
 from src.models.thermal_device import ThermalDeviceModel, ElectricResistanceThermalDeviceModel, HeatPumpThermalDeviceModel
 from src.utils.orientation import Orientation
-from src.controllers.ventilation.models import CO2Source
 
 
 def create_orientation(orientation_float: float) -> Orientation:
@@ -34,21 +33,6 @@ def create_heating_model(config: HeatingSystemConfig) -> ThermalDeviceModel:
         )
     else:
         raise ValueError(f"Unknown heating system type: {config.type}")
-
-
-def create_co2_sources(co2_source_configs: List[CO2SourceConfig]) -> List[CO2Source]:
-    """Create CO2 sources from configuration"""
-    co2_sources = []
-    
-    for source_config in co2_source_configs:
-        # Create multiple sources if count > 1
-        for _ in range(source_config.count):
-            co2_source = CO2Source(
-                co2_production_rate_m3_per_hour=source_config.co2_production_rate_m3_per_hour
-            )
-            co2_sources.append(co2_source)
-    
-    return co2_sources
 
 
 def create_wall_models(wall_configs: List[WallConfig]) -> List[WallModel]:

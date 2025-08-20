@@ -10,7 +10,7 @@ import dateutil.parser
 import numpy as np
 from src.controllers.ventilation.models import (
     RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
-    ERVVentilationModel, NaturalVentilationModel, CO2Source
+    ERVVentilationModel, NaturalVentilationModel
 )
 from src.models.building import BuildingModel, SlabModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
@@ -23,16 +23,12 @@ from src.utils.timeseries import TimeSeries
 def create_example_room():
     """Create a simple room setup for testing"""
     
-    # Assume co2 is sufficient dissipated while not in use
-    occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.00)
-
     # windows would only be used for free heating/cooling
     window_vent = WindowVentilationModel(200)
     
     # Create room dynamics
     room_dynamics = RoomCO2Dynamics(
         volume_m3=100.0,
-        sources=[occupant_source],
         controllable_ventilations=[window_vent],
         natural_ventilations=[],
         outdoor_co2_ppm=400

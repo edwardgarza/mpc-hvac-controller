@@ -13,14 +13,7 @@
       "baseload_interior_heating": 500,
       "room": {
         "volume_m3": 700.0,
-        "outdoor_co2_ppm": 400.0,
-        "co2_sources": [
-          {
-            "type": "occupant",
-            "co2_production_rate_m3_per_hour": 0.01,
-            "count": 1
-          }
-        ]
+        "outdoor_co2_ppm": 400.0
       },
       "walls": [
         {

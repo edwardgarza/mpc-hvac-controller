@@ -4,7 +4,7 @@ import unittest
 from src.controllers.hvac_controller import HvacController
 from src.controllers.ventilation.models import (
     RoomCO2Dynamics, WindowVentilationModel, HRVVentilationModel, 
-    ERVVentilationModel, NaturalVentilationModel, CO2Source
+    ERVVentilationModel, NaturalVentilationModel
 )
 from src.models.building import BuildingModel, WallModel, WindowModel, RoofModel, PierAndBeam, Studs
 from src.models.thermal_device import HeatPumpThermalDeviceModel, ElectricResistanceThermalDeviceModel
@@ -24,14 +24,10 @@ class TestHVACController(unittest.TestCase):
         window_vent = WindowVentilationModel()
         erv_vent = ERVVentilationModel(heat_recovery_efficiency=0.9, fan_power_w_m3_per_hour=0.3)
         natural_vent = NaturalVentilationModel(indoor_volume_m3=100.0, infiltration_rate_ach=0.2)
-        
-        # Create CO2 sources (occupants)
-        occupant_source = CO2Source(co2_production_rate_m3_per_hour=0.00)  
-        
+               
         # Create room dynamics
         room_dynamics = RoomCO2Dynamics(
             volume_m3=100.0,
-            sources=[occupant_source],
             controllable_ventilations=[window_vent, erv_vent],
             natural_ventilations=[natural_vent],
             outdoor_co2_ppm=400
@@ -95,13 +91,14 @@ class TestHVACController(unittest.TestCase):
     default_controller = HvacController(
         room_dynamics=room_dynamics,
         building_model=building_model,
-        horizon_hours=12.0,
+        horizon_hours=24.0,
         co2_weight=0.25,
         energy_weight=100.0,
         comfort_weight=0.1,
-        step_size_hours=0.5,
+        step_size_hours=1.5,
         optimization_method="SLSQP",
         max_iterations=500,
+        co2_m3_per_hr_per_occupant=0.005
     )
     default_controller.set_saved_schedule({"monday": [
         {"time": "09:00", "co2": 800, "temperature": 20, "energy_cost": 0.15, "occupancy_count": 1}]})
@@ -131,8 +128,8 @@ class TestHVACController(unittest.TestCase):
         hvac_energy_used = 0
         for hvac_input in control_info['hvac_controls']:
             hvac_energy_used += sum([abs(x) for x in hvac_input])
-        self.assertAlmostEqual(control_info['total_energy_cost_dollars'], hvac_energy_used * 0.15 / 1000 * 0.5, 3)
+        self.assertAlmostEqual(control_info['total_energy_cost_dollars'], hvac_energy_used * 0.15 / 1000 * 1.5, 3)
         print(control_info["hvac_controls"])
         print("total energy used:", hvac_energy_used)
         # this should be slightly greater because the optimized controller likely won't cool during the first time step as much
-        self.assertGreaterEqual(control_info['energy_cost_dollars_pid'], hvac_energy_used * 0.15 / 1000 * 0.5, 3)
+        self.assertGreaterEqual(control_info['energy_cost_dollars_pid'], hvac_energy_used * 0.15 / 1000 * 1.5, 3)
