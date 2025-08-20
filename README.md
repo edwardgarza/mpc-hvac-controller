@@ -62,7 +62,7 @@ rest_command:
     payload: "{{ prediction_payload }}"
     timeout: 300
 ```
-And then set up an automation like this to periodically send requests 
+And then set up an automation like this to periodically send requests (my HA instance is in Fahrenheit so I have to convert to degrees Celsius in this automation)
 
 ```
 alias: Make MPC Prediction API Request
