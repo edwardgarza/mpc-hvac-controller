@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 from datetime import datetime, timedelta
 import dateutil.parser
 
@@ -7,23 +7,35 @@ class RelativeScheduleTimeSeries:
         self.keys = time_offsets_hours
         self.values = values
 
-    def interpolate_step(self, time_offset_hours: float) -> List[float]:
+    def _interpolate_step(self, time_offset_hours: float) -> List[float]:
         for i in reversed(range(len(self.keys))):
             if time_offset_hours >= self.keys[i]:
                 return self.values[i]
         return self.values[0]
 
+    def _parse_temp_deadband(self, deadband) -> List[float]:
+        if type(deadband) is float or type(deadband) is int:
+            return (deadband, deadband)
+        if deadband.count(';') != 1:
+            raise Exception("Incorrect format for temp " + deadband)
+        return tuple([float(x) for x in deadband.split(';')])
+
+
     def interpolate_step_co2(self, time_offset_hours: float) -> float:
-        return self.interpolate_step(time_offset_hours)[0]
+        return self._interpolate_step(time_offset_hours)[0]
 
     def interpolate_step_temp(self, time_offset_hours: float) -> float:
-        return self.interpolate_step(time_offset_hours)[1]
+        deadband = self._parse_temp_deadband(self._interpolate_step(time_offset_hours)[1])
+        return sum(deadband) / 2.0
     
     def interpolate_step_energy_cost(self, time_offset_hours: float) -> float:
-        return self.interpolate_step(time_offset_hours)[2]
+        return self._interpolate_step(time_offset_hours)[2]
 
     def interpolate_step_occupancy_count(self, time_offset_hours: float) -> float:
-        return self.interpolate_step(time_offset_hours)[3]
+        return self._interpolate_step(time_offset_hours)[3]
+    
+    def interoplate_step_temp_deadband(self, time_offset_hours: float) -> Tuple[float]:
+        return self._parse_temp_deadband(self._interpolate_step(time_offset_hours)[1])
 
 class Calendar:
     def __init__(self, weekly_schedule: Dict[str, List[Dict[str, Any]]]):
@@ -61,7 +73,6 @@ class Calendar:
                     # Create absolute datetime
                     hour, minute = entry["time"].split(':')
                     absolute_time = datetime(day_date.year, day_date.month, day_date.day, int(hour), int(minute), tzinfo=start_date_time.tzinfo)
-                    
                     absolute_schedule.append(
                         [absolute_time, [entry.get("co2", 800.0), entry.get("temperature", 22.0), entry.get("energy_cost", 0.15), entry.get("occupancy_count", 1)]]
                     )

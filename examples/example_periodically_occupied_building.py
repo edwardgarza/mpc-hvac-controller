@@ -31,7 +31,6 @@ def create_example_room():
         volume_m3=100.0,
         controllable_ventilations=[window_vent],
         natural_ventilations=[],
-        outdoor_co2_ppm=400
     )
     
     return room_dynamics
@@ -112,7 +111,7 @@ def run_periodically_occupied_example():
         {"time": "06:00", "co2": 400, "temperature": 18, "energy_cost": energy_cost_per_kwh, "occupancy_count": 0},        
         ], 
         "tuesday": [
-        {"time": "00:00", "co2": 400, "temperature": 18, "energy_cost": energy_cost_per_kwh, "occupancy_count": 1},
+        {"time": "00:00", "co2": 400, "temperature": 20, "energy_cost": energy_cost_per_kwh, "occupancy_count": 1},
         {"time": "06:00", "co2": 400, "temperature": 18, "energy_cost": energy_cost_per_kwh, "occupancy_count": 0},
         
         ]})

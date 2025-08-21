@@ -42,7 +42,8 @@ class HvacController:
                  use_soft_boundary_condition: bool = True, 
                  smooth_controls: bool = False,
                  dynamically_lengthen_step_sizes: bool = False, 
-                 co2_m3_per_hr_per_occupant = 0.02): 
+                 co2_m3_per_hr_per_occupant = 0.02, 
+                 base_load_heat_w_per_occupant = 0): 
         """
         Initialize integrated HVAC controller
         
@@ -74,6 +75,7 @@ class HvacController:
         self.smooth_controls = smooth_controls
         self.dynamically_lengthen_step_sizes = dynamically_lengthen_step_sizes
         self.co2_m3_per_hr_per_occupant = co2_m3_per_hr_per_occupant
+        self.base_load_heat_w_per_occupant = base_load_heat_w_per_occupant
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
         self.steps, self.cumulative_steps = self.generate_time_steps(self.step_size_hours, self.horizon_hours,  self.dynamically_lengthen_step_sizes)
@@ -161,10 +163,14 @@ class HvacController:
                 ventilation_heat_load_kw += natural_vent.energy_load_kw(
                     natural_vent.airflow_m3_per_hour(), current_temp, weather.outdoor_temperature
                 )
+                
 
             # Use building model for temperature change (includes HVAC and thermal transfer)
             temp_change_per_s = self.building_model.temperature_change_per_s(
-                current_temp, weather, hvac_inputs[0], ventilation_heat_load_kw * 1000
+                current_temp, 
+                weather, 
+                hvac_inputs[0], 
+                ventilation_heat_load_kw * 1000 + self.base_load_heat_w_per_occupant * self.set_points.interpolate_step_occupancy_count(current_time_offset)
             )
 
             temp_change = temp_change_per_s * self.step_size_seconds
@@ -192,9 +198,12 @@ class HvacController:
             Tuple(above_temp, Comfort cost)
         """
         # Use dynamic setpoints if provided, otherwise use saved schedule
-        target_temp = self.set_points.interpolate_step_temp(time_hours_offset)
-        deviation = abs(temperature_c - target_temp)
-        return (temperature_c - target_temp > 0, self.comfort_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset))
+        deadband = self.set_points.interoplate_step_temp_deadband(time_hours_offset)
+        if deadband[0] <= temperature_c and temperature_c <= deadband[1]:
+            return True, 0
+        
+        deviation = min(abs(temperature_c - deadband[0]), abs(temperature_c - deadband[1]))
+        return (temperature_c > deadband[1], self.comfort_weight * (deviation ** 2) * self._occupancy_comfort_cost_mult(time_hours_offset))
     
     def co2_cost(self, co2_ppm: float, time_hours_offset: float = 0.0) -> float:
         """
@@ -292,7 +301,7 @@ class HvacController:
             # Comfort cost
             above_temp, comfort_cost_per_s = self.comfort_cost(temp_trajectory[i + 1], current_time_offset) 
             comfort_cost = comfort_cost_per_s * self.step_size_seconds
-            if above_temp == last_step_above_temp:
+            if above_temp == last_step_above_temp and comfort_cost_per_s > 0:
                 accumulated_temp_error += comfort_cost / (self.n_steps ** 2)
             else: 
                 accumulated_temp_error = 0        
@@ -458,7 +467,8 @@ class HvacController:
     
     def generate_plot(self):
         x_axis = []
-        set_point_temp = []
+        set_point_temp_low = []
+        set_point_temp_high = []
         set_point_co2 = []
         energy_cost = []
         outdoor_temp = []
@@ -474,7 +484,9 @@ class HvacController:
             relative_time_delta = self.step_size_hours * step
             time = self.get_start_time() + datetime.timedelta(seconds=self.step_size_seconds * step)
             x_axis.append(time)
-            set_point_temp.append(self.set_points.interpolate_step_temp(relative_time_delta))
+            deadband = self.set_points.interoplate_step_temp_deadband(relative_time_delta)
+            set_point_temp_low.append(deadband[0])
+            set_point_temp_high.append(deadband[1])
             set_point_co2.append(self.set_points.interpolate_step_co2(relative_time_delta))
             energy_cost.append(self.set_points.interpolate_step_energy_cost(relative_time_delta))
             outdoor_temp.append(self.weather_series_hours.interpolate(relative_time_delta).outdoor_temperature)
@@ -483,10 +495,11 @@ class HvacController:
         ax1.set_title('Temperature and HVAC controls')
         ax1_control = ax1.twinx()
         ax1_control.plot(x_axis[1:], hvac_sequence, label="HVAC Controls", linestyle='--',)
-        ax1_control.set_ylabel('Heating/Cooling Control Value (W)', color='red')
-        ax1.plot(x_axis, set_point_temp, label="Set Point Temp", color='green')
+        ax1_control.set_ylabel('Heating/Cooling Control Value (W)', color='green')
+        ax1.plot(x_axis, set_point_temp_low, label="Set Point Temp Low", color='blue', linestyle=':',)
+        ax1.plot(x_axis, set_point_temp_high, label="Set Point Temp High", color='red', linestyle=':',)
         ax1.plot(x_axis, self.get_temp_trajectory(), label="Indoor Temp", color='orange')
-        ax1.plot(x_axis, outdoor_temp, label="Outdoor Temp", color="blue")
+        ax1.plot(x_axis, outdoor_temp, label="Outdoor Temp", color="purple")
         ax1.set_ylabel("Temperature")
         ax1.legend(loc='upper left')
         ax1_control.legend(loc='upper right')
@@ -521,29 +534,60 @@ class HvacController:
 
     def energy_costs_hvac_pid(self, start_temp):
         '''
-        Calculate what the energy costs would've been if only hvac  and natural ventilation is considered and a
+        Calculate what the energy costs would've been if only hvac and natural ventilation is considered and a
          normal control scheme is used that is unaware of time of use pricing or home/away scheduling.
+        
+        TODO: What happens for heat/cool only systems?
         '''
         cost = 0
         total_energy = 0
-        set_point_temp = self.set_points.interpolate_step_temp(0)
+
+        set_point_deadband = self.set_points.interoplate_step_temp_deadband(0)
+        set_point_temp = start_temp
+        if start_temp < set_point_deadband[0]:
+            set_point_temp = set_point_deadband[0]
+        if start_temp > set_point_deadband[1]:
+            set_point_temp = set_point_deadband[1]
         outdoor_weather = self.weather_series_hours.interpolate(0)
-        initial_j = self.building_model.heat_capacity * (start_temp - set_point_temp)
-        additional_energy_used_j = self.building_model.heating_model.power_consumed(initial_j, set_point_temp, outdoor_weather.outdoor_temperature)
+        initial_j = self.building_model.heat_capacity * (start_temp - set_point_temp) 
+        additional_energy_used_j = self.building_model.heating_model.power_consumed(-initial_j, set_point_temp, outdoor_weather.outdoor_temperature)
+        current_temperature = set_point_temp
 
         for step in range(self.n_steps + 1):
             relative_time_delta = self.step_size_hours * step
-            set_point_temp = self.set_points.interpolate_step_temp(relative_time_delta)
-            energy_cost = self.set_points.interpolate_step_energy_cost(relative_time_delta)
+
             outdoor_weather = self.weather_series_hours.interpolate(relative_time_delta)
             ventilation_load_kw = sum([x.energy_load_kw(None, set_point_temp, outdoor_weather.outdoor_temperature) for x in self.room_dynamics.natural_ventilations])
-            heat_change = self.building_model.powerflow(set_point_temp, outdoor_weather) + ventilation_load_kw * 1000
-            power_input = self.building_model.heating_model.power_consumed(-heat_change, set_point_temp, outdoor_weather.outdoor_temperature)
-            energy =  power_input / 1000 * self.step_size_hours  + additional_energy_used_j / 3600 / 1000 # kwh + j
+
+            # simulate what happens w no hvac input and see if the resulting temp is in the deadband or not
+            current_temperature += self.step_size_seconds * self.building_model.temperature_change_per_s(
+                                                                current_temperature, 
+                                                                outdoor_weather, 
+                                                                0, 
+                                                                ventilation_load_kw * 1000) 
+            
+            set_point_deadband = self.set_points.interoplate_step_temp_deadband(relative_time_delta)
+            set_point_temp = current_temperature
+            
+            if current_temperature < set_point_deadband[0]:
+                set_point_temp = set_point_deadband[0]
+            elif current_temperature > set_point_deadband[1]:
+                set_point_temp = set_point_deadband[1]
+            else:
+                print("pid costs: current temp", current_temperature, "set point", set_point_deadband, "step cost", 0, "total cost", cost)
+                continue
+
+            energy_cost = self.set_points.interpolate_step_energy_cost(relative_time_delta)
+            heat_change_j = self.building_model.heat_capacity * (current_temperature - set_point_temp)
+            energy_input_j = self.building_model.heating_model.power_consumed(-heat_change_j, set_point_temp, outdoor_weather.outdoor_temperature)
+            energy =  (energy_input_j + additional_energy_used_j) / 3600 / 1000 # j -> kwh
             additional_energy_used_j = 0
             step_cost = energy * energy_cost 
             cost += step_cost
             total_energy += energy
+            print("pid costs: current temp", current_temperature, "set point", set_point_deadband, "step cost", step_cost, "total cost", cost)
+            current_temperature = set_point_temp
+
         return cost
 
     def energy_costs_controls(self, ventilation_controls: List[List[float]], hvac_controls: List[List[float]]) -> float:

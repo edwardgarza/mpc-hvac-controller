@@ -40,3 +40,16 @@ class TestHeatPumpThermalDeviceModel(unittest.TestCase):
         self.assertGreater( less_efficient_model.power_produced(self.input_power_cooling, self.indoor_temp, self.outdoor_temp_cooling), 
                             more_efficient_model.power_produced(self.input_power_cooling, self.indoor_temp, self.outdoor_temp_cooling))
 
+    def test_heat_pump_efficiency_outdoor_temps(self):
+        heat_pump = HeatPumpThermalDeviceModel(hspf=10, output_range=(-10000, 10000))
+        self.assertLess(heat_pump.power_produced(self.input_power, self.indoor_temp, self.outdoor_temp - 10), 
+                        heat_pump.power_produced(self.input_power, self.indoor_temp, self.outdoor_temp))
+        self.assertLess(heat_pump.power_produced(self.input_power, self.indoor_temp + 10, self.outdoor_temp), 
+                        heat_pump.power_produced(self.input_power, self.indoor_temp, self.outdoor_temp))
+        
+        # the power produced is more negative in both of these cases
+        self.assertLess(heat_pump.power_produced(self.input_power_cooling, self.indoor_temp, self.outdoor_temp_cooling), 
+                            heat_pump.power_produced(self.input_power_cooling, self.indoor_temp - 10, self.outdoor_temp_cooling))
+        self.assertLess(heat_pump.power_produced(self.input_power_cooling, self.indoor_temp, self.outdoor_temp_cooling - 10), 
+                            heat_pump.power_produced(self.input_power_cooling, self.indoor_temp, self.outdoor_temp_cooling))
+

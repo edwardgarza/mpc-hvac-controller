@@ -2,31 +2,42 @@
 
 Model Predictive Control HVAC system with CO2 and ventilation management.
 
-The goal of this is to have a more intelligent heating/cooling schedule that takes into account building parameters, occupant comfort, and predicted weather patterns.
+The goal of this is to have a more intelligent heating/cooling schedule that takes into account building parameters, occupant comfort (temperature and CO2), electricity pricing, and predicted weather patterns. It can implicitly address questions like the following:
 
-At a high level, a traditional thermostat works as a [pid](https://en.wikipedia.org/wiki/PID_controller) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. It doesn't do any planning based on any external variables.
+- Should I turn off my thermostat when leaving
+- How much money will HVAC cost me today
+- How should I leverage time of use pricing effectively
+- If my equipment is undersized, how should I precondition the space before an extreme weather event
+- With an only heat/cool system how should I ensure I don't over condition the space (i.e. heat too much in the cold morning and then overheat during the day).
+- At what point is it cheaper to run the fans at night for night time cooling compared to using AC
+- Which heating source is currently the most effective to use (i.e. air source heat pump, ground source heat pump, resistance, gas etc)
+- Should I use backup heat when it's too cold for a heat pump or should I preheat/allow the temperature to sag slightly
 
-The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy use, cost, or even carbon intensity of the electric sources. This also includes ventillation for controlling CO2 levels and/or capturing free cooling or heating.
+
+While this was designed with buildings in mind where ventilation is also important, it can also be used for hot tubs or water heating schedules (see examples). This is best suited where the thermal and/or ventilation loads are strongly deferable, so a fridge would not be a good candidate because temperatures should remain stable and the thermal mass is low. However, ideally ice making and defrosting would occur during cheaper electricity times.
+
+At a high level, a traditional thermostat works as a [pid](https://en.wikipedia.org/wiki/PID_controller) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. It doesn't do any planning and is reactive to external variables.
+
+The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy use, cost while maintaining comfort. This also includes ventillation for controlling CO2 levels and/or capturing free cooling or heating.
 
 The controller optimizes over a prediction horizon (typically 24 hours) to find the best trajectory that balances energy efficiency, comfort, and air quality. Once it implements the first step, it will then recalculate the entire next 24 hour horizon. This is the control loop, and 15-30 minutes between predictions is probably sufficient. 
 
-During each time step, the ventilation rates could be controlled by using a PWM signal to precisely control the fan speeds or by simply turning the ventilation on/off.
+During each time step, the ventilation rates could be controlled by using a PWM signal to precisely control the fan speeds or by simply turning the ventilation on/off. 
 
 For HVAC, the controls are a little less clear and I think the best option would be to set the thermostat to the specified mode (i.e. heat, cool, or off) and change the set point to the expected indoor temperate at that time step. 
 
 All units are in SI. 
 
 ### Currently supported features
-- Weekly schedules that include temperature set points, co2 set points, electricity pricing, and occupancy for home and away planning
+- Weekly schedules that include temperature set points and deadbands, co2 set points, electricity pricing, and occupancy for home and away planning
 - Multiple ventilation types simultaneously
 - Adjustable weights for co2, comfort, and electricity costs
 - Visual representation of the planned trajectory
+- Occupancy scheduling ensures that CO2 and heat production of occupants is only considered when present
 
 ### Currently planned to be supported
-- More fine-grained control around temperate set points (i.e. dead-bands where the cost is 0 in that range)
 - Multiple simultaneous hvac systems (i.e. air source heat pump and electric resistance strips)
-- CO2 sources that change over time based on the scheduling
-- Dynamic step sizes to make the optimization much faster
+- Faster optimization
 
 ### Features under consideration
 - Feels-like temperature that includes humidity levels
@@ -34,7 +45,6 @@ All units are in SI.
 - More accurate simulation on erv/hrv efficiencies vs fan speed
 - More accurate simulation of heat pumps output capacities based on indoor and outdoor temperatures
 - Solar heat gain on all surfaces
-- Carbon-intensity in the optimization
 
 <h2>Assumptions</h2>
 
