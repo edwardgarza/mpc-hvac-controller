@@ -567,7 +567,7 @@ class HvacController:
         ax2.grid(True, alpha=0.3)
 
         ax3.set_ylabel("Relative humidity %")
-        ax3.set_title("Humidity Levels [Experimental, ignoring AC]")
+        ax3.set_title("Humidity Levels [Experimental, ignoring AC and material absorption]")
         ax3_abs = ax3.twinx()
 
         if len(self.humidity_trajectory) > 2:
