@@ -100,6 +100,7 @@ actions:
           "current_co2_ppm": {{ states("co2_sensor") | float }},
           "current_temp_c": {{ ((states("sensor.thermostat_temperature") | float + states("other temperature sensor") | float) / 2 - 32) * 5/9 }},
           "current_time": "{{ now().isoformat() }}",
+          "current_humidity":  {{ states("sensor.awair_element_66681_humidity") | float / 100 }},
           "weather_time_series": [
             {% for f in forecasts %}
               {
@@ -109,7 +110,8 @@ actions:
                 "solar_altitude_rad": 0.0,
                 "solar_azimuth_rad": 0.0,
                 "solar_intensity_w": 0.0,
-                "ground_temperature": 12.0
+                "ground_temperature": 12.0,
+                "humidity": {{ f.humidity / 100.0 }},
               }{% if not loop.last %},{% endif %}
             {% endfor %}
           ]
