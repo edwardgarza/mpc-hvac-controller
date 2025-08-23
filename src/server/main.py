@@ -52,6 +52,7 @@ class WeatherData(BaseModel):
     solar_azimuth_rad: float = 0.0
     solar_intensity_w: float = 800.0
     ground_temperature: float = 12.0
+    humidity: float = 0.0
 
 
 class WeatherTimeSeries(BaseModel):
@@ -63,12 +64,14 @@ class WeatherTimeSeries(BaseModel):
     solar_azimuth_rad: float = 0.0
     solar_intensity_w: float = 800.0
     ground_temperature: float = 12.0
+    humidity: float = 0.0
 
 
 class ControlRequest(BaseModel):
     """Request for control optimization"""
     current_co2_ppm: float
     current_temp_c: float
+    # current_humidity: float
     current_time_hours: float
     weather_data: List[WeatherData]
 
@@ -86,6 +89,7 @@ class PredictionRequest(BaseModel):
     """Request for getting next prediction"""
     current_co2_ppm: float
     current_temp_c: float
+    current_humidity: float
     current_time: str = Field(description="Current time in ISO format (e.g., '2024-01-15T09:30:00Z')")
     weather_time_series: List[WeatherTimeSeries]
 
@@ -206,6 +210,9 @@ def initialize_controller():
         step_size_hours=controller_config.step_size_hours,
         optimization_method=controller_config.optimization_method,
         max_iterations=controller_config.max_iterations,
+        co2_m3_per_hr_per_occupant=controller_config.co2_m3_per_hr_per_occupant,
+        base_load_heat_w_per_occupant=controller_config.base_load_heat_w_per_occupant,
+        moisture_generated_per_occupant=controller_config.moisture_generated_per_occupant
     )
     
     # Load and translate weekly schedules if available
@@ -245,7 +252,8 @@ def weather_data_to_timeseries(weather_data: List[WeatherData]) -> TimeSeries:
             irradiation=solar,
             wind_speed=wd.wind_speed,
             outdoor_temperature=wd.outdoor_temperature,
-            ground_temperature=wd.ground_temperature
+            ground_temperature=wd.ground_temperature,
+            relative_humidity=wd.humidity,
         )
         weather_conditions.append(weather)
     return TimeSeries(time_points, weather_conditions)
@@ -267,7 +275,8 @@ def weather_time_series_to_relative_time(weather_time_series: List[WeatherTimeSe
             irradiation=solar,
             wind_speed=point.wind_speed,
             outdoor_temperature=point.outdoor_temperature,
-            ground_temperature=point.ground_temperature
+            ground_temperature=point.ground_temperature,
+            relative_humidity=point.humidity,
         )
         weather_conditions.append(weather)
     return TimeSeries(time_points, weather_conditions)
@@ -279,6 +288,21 @@ app = FastAPI(
     version="1.0.0"
 )
 
+import logging
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+def register_exception(app: FastAPI):
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+
+        exc_str = f'{exc}'.replace('\n', ' ').replace('   ', ' ')
+        # or logger.error(f'{exc}')
+        logging.error(request, exc_str)
+        content = {'status_code': 10422, 'message': exc_str, 'data': None}
+        return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+register_exception(app)
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -349,6 +373,7 @@ async def get_control(request: ControlRequest):
         ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
             request.current_co2_ppm,
             request.current_temp_c,
+            request.current_humidity,
             weather_series,
             request.current_time_hours
         )
@@ -372,7 +397,7 @@ async def get_control(request: ControlRequest):
 @app.post("/predict")
 async def get_prediction(request: PredictionRequest):
     """Get next prediction from controller"""
-
+    print("received predict request", request)
     if controller is None:
         raise HTTPException(status_code=500, detail="Controller not initialized")
     
@@ -405,6 +430,7 @@ async def get_prediction(request: PredictionRequest):
                 controller.optimize_controls,
                 request.current_co2_ppm,
                 request.current_temp_c,
+                request.current_humidity,
                 weather_series,
                 current_time
             )
@@ -420,9 +446,10 @@ async def get_prediction(request: PredictionRequest):
         if next_prediction is not None:
             # Extract control sequences from the prediction
             # Predict trajectories
-            co2_trajectory, temperature_trajectory = controller.predict_trajectories(
+            co2_trajectory, temperature_trajectory, humidity_trajectory = controller.predict_trajectories(
                 request.current_co2_ppm,
                 request.current_temp_c,
+                request.current_humidity,
                 controller.get_optimized_ventilation_controls(), 
                 controller.get_optimized_hvac_controls(),
                 weather_series,

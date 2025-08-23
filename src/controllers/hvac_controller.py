@@ -13,10 +13,10 @@ import scipy.optimize as optimize
 from typing import List, Tuple, Optional, Dict, Any
 
 from src.models.building import BuildingModel
-from src.controllers.ventilation.models import RoomCO2Dynamics
+from src.controllers.ventilation.models import ERVVentilationModel, RoomCO2Dynamics
 from src.utils.timeseries import TimeSeries
 from src.utils.calendar import Calendar, RelativeScheduleTimeSeries
-
+from src.models.humidity import humidity
 
 class HvacController:
     """
@@ -43,7 +43,8 @@ class HvacController:
                  smooth_controls: bool = False,
                  dynamically_lengthen_step_sizes: bool = False, 
                  co2_m3_per_hr_per_occupant = 0.02, 
-                 base_load_heat_w_per_occupant = 0): 
+                 base_load_heat_w_per_occupant = 0, 
+                 moisture_generated_per_occupant = 0): 
         """
         Initialize integrated HVAC controller
         
@@ -76,6 +77,7 @@ class HvacController:
         self.dynamically_lengthen_step_sizes = dynamically_lengthen_step_sizes
         self.co2_m3_per_hr_per_occupant = co2_m3_per_hr_per_occupant
         self.base_load_heat_w_per_occupant = base_load_heat_w_per_occupant
+        self.moisture_generated_per_occupant = moisture_generated_per_occupant
         # Time discretization
         self.step_size_seconds = step_size_hours * 3600
         self.steps, self.cumulative_steps = self.generate_time_steps(self.step_size_hours, self.horizon_hours,  self.dynamically_lengthen_step_sizes)
@@ -104,26 +106,31 @@ class HvacController:
     def predict_trajectories(self, 
                            initial_co2_ppm: float,
                            initial_temp_c: float,
+                           initial_humidity: float,
                            ventilation_control_sequences: List[List[float]],
                            hvac_control_sequences: List[List[float]],
                            weather_series_hours: TimeSeries,
-                           start_time_hours_offset: float) -> Tuple[List[float], List[float]]:
+                           start_time_hours_offset: float,
+                           include_humidity: bool = True) -> Tuple[List[float], List[float], List[float]]:
         """
-        Predict both CO2 and temperature trajectories
+        Predict both CO2, temperature, and humidity trajectories based on control inputs
         
         Args:
             initial_co2_ppm: Starting CO2 concentration
             initial_temp_c: Starting temperature inside
+            initial_humidity: Starting relative humidity inside
             control_sequences: Control sequences [ventilation_controls, hvac_controls]
             weather_series_hours: TimeSeries of weather conditions
             start_time_hours_offset: Starting time for prediction (hours from weather series start)
-            
+            include_humidity: include the humidity in the trajectory or not. 
+
         Returns:
-            Tuple of (co2_trajectory, temp_trajectory), including the current time
+            Tuple of (co2_trajectory, temp_trajectory, humidity), including the current time
         """
 
         co2_trajectory = [initial_co2_ppm]
         temp_trajectory = [initial_temp_c]
+        humidity_trajectory = [initial_humidity]
         
         current_co2 = initial_co2_ppm
         current_temp = initial_temp_c
@@ -151,18 +158,36 @@ class HvacController:
             # Predict temperature change using building model
             # Calculate ventilation heat load (additional to building model)
             ventilation_heat_load_kw = 0.0
+            humidity_change_per_s = 0
             for j, (vent_model, vent_input) in enumerate(
                 zip(self.room_dynamics.controllable_ventilations, ventilation_inputs)
             ):
                 ventilation_heat_load_kw += vent_model.energy_load_kw(
                     vent_input, current_temp, weather.outdoor_temperature
                 )
+                if include_humidity:
+                    multiplier = 1 if not type(vent_model) == ERVVentilationModel else 1 - vent_model.moisture_recovery_efficiency
+                    humidity_change_per_s += multiplier * humidity.absolute_humidity_change_per_s(
+                                                current_temp, 
+                                                humidity_trajectory[-1], 
+                                                weather.outdoor_temperature, 
+                                                weather.relative_humidity, 
+                                                self.room_dynamics.volume_m3, 
+                                                vent_model.airflow_m3_per_hour(vent_input))
 
             # Calculate natural ventilation heat load
             for natural_vent in self.room_dynamics.natural_ventilations:
                 ventilation_heat_load_kw += natural_vent.energy_load_kw(
                     natural_vent.airflow_m3_per_hour(), current_temp, weather.outdoor_temperature
                 )
+                if include_humidity:
+                    humidity_change_per_s += humidity.absolute_humidity_change_per_s(
+                                                current_temp, 
+                                                humidity_trajectory[-1], 
+                                                weather.outdoor_temperature, 
+                                                weather.relative_humidity, 
+                                                self.room_dynamics.volume_m3, 
+                                                natural_vent.airflow_m3_per_hour())
                 
 
             # Use building model for temperature change (includes HVAC and thermal transfer)
@@ -174,13 +199,18 @@ class HvacController:
             )
 
             temp_change = temp_change_per_s * self.step_size_seconds
+            if include_humidity:
+                humidity_change_per_s += self.moisture_generated_per_occupant / 3600 * self.set_points.interpolate_step_occupancy_count(current_time_offset) / self.room_dynamics.volume_m3
+                start_humidity_abs = humidity.absolute_humidity_from_relative(current_temp, humidity_trajectory[-1])
+                humidity_trajectory.append(humidity.relative_humidity_from_asbolute(current_temp + temp_change, start_humidity_abs + humidity_change_per_s * self.step_size_seconds))
+
             current_temp += temp_change
 
             # Store trajectories
             co2_trajectory.append(current_co2)
             temp_trajectory.append(current_temp)
         
-        return co2_trajectory, temp_trajectory
+        return co2_trajectory, temp_trajectory, humidity_trajectory
     
     def _occupancy_comfort_cost_mult(self, time_hours_offset):
         return 1 if not self.use_boolean_occupant_comfort else self.set_points.interpolate_step_occupancy_count(time_hours_offset) > 0
@@ -256,8 +286,10 @@ class HvacController:
         control_vector: np.ndarray,
         current_co2_ppm: float,
         current_temp_c: float,
+        current_humidity: float,
         weather_series_hours: TimeSeries,
-        start_time_hours_offset: float) -> float:
+        start_time_hours_offset: float, 
+        include_humidity: bool = False) -> float:
         """
         Calculate total cost for integrated HVAC control
         
@@ -275,17 +307,17 @@ class HvacController:
         ventilation_sequences, hvac_sequences = self.convert_flat_controls_to_ventillation_and_hvac(control_vector, 0)
         
         # Predict trajectories - note that co2 and temp trajectories include the starting step
-        co2_trajectory, temp_trajectory = self.predict_trajectories(
+        co2_trajectory, temp_trajectory, humidity_trajectory = self.predict_trajectories(
                                             current_co2_ppm, 
                                             current_temp_c, 
+                                            current_humidity,
                                             ventilation_sequences, 
                                             hvac_sequences, 
                                             weather_series_hours, 
-                                            start_time_hours_offset
+                                            start_time_hours_offset, 
+                                            include_humidity,
                                         )
 
-        self.co2_trajectory = co2_trajectory
-        self.temp_trajectory = temp_trajectory
         total_cost = 0.0
         accumulated_temp_error = 0
         accumulated_co2_error = 0
@@ -360,6 +392,7 @@ class HvacController:
     def optimize_controls(self,
                          current_co2_ppm: float,
                          current_temp_c: float,
+                         current_humidity: float,
                          weather_series_hours: TimeSeries,
                          start_time: datetime) -> Tuple[List[float], List[float], float]:
         """
@@ -400,7 +433,7 @@ class HvacController:
         result = optimize.minimize(
             self.cost_function,
             u0,
-            args=(current_co2_ppm, current_temp_c, weather_series_hours, 0),
+            args=(current_co2_ppm, current_temp_c, current_humidity, weather_series_hours, 0),
             method=self.optimization_method,
             bounds=bounds,
             options={'maxiter': self.max_iterations, 'disp': True},
@@ -409,6 +442,16 @@ class HvacController:
         if not result.success:
             print(f"Optimization failed: {result.message}")
         ventilation_controls, hvac_controls = self.convert_flat_controls_to_ventillation_and_hvac(result.x)
+        self.co2_trajectory, self.temp_trajectory, self.humidity_trajectory = self.predict_trajectories(
+            current_co2_ppm, 
+            current_temp_c, 
+            current_humidity, 
+            ventilation_controls, 
+            hvac_controls, 
+            weather_series_hours, 
+            0, 
+            True)
+
         self.next_prediction = []
         for idx, val in enumerate(result.x[1:]):
             # peel off the first value in each control sequence to step forward in time
@@ -472,7 +515,8 @@ class HvacController:
         set_point_co2 = []
         energy_cost = []
         outdoor_temp = []
-        
+        outdoor_humidity = []
+
         n_ventilation_vars = self.n_ventilation * self.n_steps
         print(f"[DEBUG] n_ventilation: {self.n_ventilation}, n_steps: {self.n_steps}, n_ventilation_vars: {n_ventilation_vars}")
         ventilation_sequences = self.get_optimized_ventilation_controls()
@@ -490,8 +534,10 @@ class HvacController:
             set_point_co2.append(self.set_points.interpolate_step_co2(relative_time_delta))
             energy_cost.append(self.set_points.interpolate_step_energy_cost(relative_time_delta))
             outdoor_temp.append(self.weather_series_hours.interpolate(relative_time_delta).outdoor_temperature)
+            outdoor_humidity.append(self.weather_series_hours.interpolate(relative_time_delta).relative_humidity)
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        # fig, ((ax1, ax2), (ax3, _)) = plt.subplots(2, 2, figsize=(16, 16))
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 18))
         ax1.set_title('Temperature and HVAC controls')
         ax1_control = ax1.twinx()
         ax1_control.plot(x_axis[1:], hvac_sequence, label="HVAC Controls", linestyle='--',)
@@ -520,6 +566,30 @@ class HvacController:
         ax2.legend(loc='upper right')
         ax2.grid(True, alpha=0.3)
 
+        ax3.set_ylabel("Relative humidity %")
+        ax3.set_title("Humidity Levels [Experimental, ignoring AC]")
+        ax3_abs = ax3.twinx()
+
+        if len(self.humidity_trajectory) > 2:
+            ax3.plot(x_axis, [x * 100 for x in self.humidity_trajectory], label="indoor humidity", color='blue')
+            ax3.plot(x_axis, [x * 100 for x in outdoor_humidity], label="outdoor humidity", color='red')
+            ax3_abs.plot(
+                x_axis, 
+                [humidity.absolute_humidity_from_relative(x, y) for (x, y) in zip(self.get_temp_trajectory(), self.humidity_trajectory)], 
+                label="indoor absolute humidity", 
+                linestyle='--', 
+                color='green')
+            ax3_abs.plot(
+                x_axis, 
+                [humidity.absolute_humidity_from_relative(x, y) for (x, y) in zip(outdoor_temp, outdoor_humidity)], 
+                label="outdoor absolute humidity", 
+                linestyle='--', 
+                color='orange')
+            ax3_abs.set_ylabel("Absolute Humidity (g/m^3)")
+            ax3.legend(loc="upper left")
+            ax3_abs.legend(loc="upper right")
+        ax3.grid(True, alpha=0.3)    
+
         # plt.plot(x_axis, energy_cost, label="energy")
         plt.tight_layout()
         plt.show()
@@ -532,7 +602,7 @@ class HvacController:
         
         return {"plot_data": plot_data}
 
-    def energy_costs_hvac_pid(self, start_temp):
+    def energy_costs_hvac_pid(self, start_temp: float):
         '''
         Calculate what the energy costs would've been if only hvac and natural ventilation is considered and a
          normal control scheme is used that is unaware of time of use pricing or home/away scheduling.
@@ -544,6 +614,7 @@ class HvacController:
 
         set_point_deadband = self.set_points.interoplate_step_temp_deadband(0)
         set_point_temp = start_temp
+        print("set point deadband debug", set_point_deadband, start_temp)
         if start_temp < set_point_deadband[0]:
             set_point_temp = set_point_deadband[0]
         if start_temp > set_point_deadband[1]:
@@ -574,7 +645,6 @@ class HvacController:
             elif current_temperature > set_point_deadband[1]:
                 set_point_temp = set_point_deadband[1]
             else:
-                print("pid costs: current temp", current_temperature, "set point", set_point_deadband, "step cost", 0, "total cost", cost)
                 continue
 
             energy_cost = self.set_points.interpolate_step_energy_cost(relative_time_delta)
@@ -585,7 +655,6 @@ class HvacController:
             step_cost = energy * energy_cost 
             cost += step_cost
             total_energy += energy
-            print("pid costs: current temp", current_temperature, "set point", set_point_deadband, "step cost", step_cost, "total cost", cost)
             current_temperature = set_point_temp
 
         return cost
@@ -614,6 +683,7 @@ class HvacController:
     def get_control_info(self,
                         current_co2_ppm: float,
                         current_temp_c: float,
+                        current_humidity: float,
                         weather_series_hours: TimeSeries,
                         start_time: datetime = 0.0) -> Tuple[List[float], List[float], List[float], List[float], float, Dict[str, Any]]:
         """
@@ -627,27 +697,31 @@ class HvacController:
         Returns:
             Tuple of (ventilation_controls, hvac_controls, co2_trajectory, temp_trajectory, total_cost, additional_info)
         """
+        print("control info debug", current_temp_c)
         _ = self.optimize_controls(
-            current_co2_ppm, current_temp_c, weather_series_hours, start_time
+            current_co2_ppm, current_temp_c, current_humidity, weather_series_hours, start_time
         )
         
         # Predict full trajectories
         ventilation_controls = self.get_optimized_ventilation_controls()        
         hvac_controls = self.get_optimized_hvac_controls()
         
-        co2_trajectory, temp_trajectory = self.predict_trajectories(
+        co2_trajectory, temp_trajectory, humidity_trajectory = self.predict_trajectories(
                                             current_co2_ppm, 
                                             current_temp_c,
+                                            current_humidity,
                                             ventilation_controls, 
                                             hvac_controls,
                                             weather_series_hours, 
-                                            0
+                                            0,
+                                            True
                                         )   
         return {
             "ventillation_controls": ventilation_controls,
             "hvac_controls": hvac_controls,
             "co2_trajectory": co2_trajectory,
             "temp_trajectory": temp_trajectory,
+            "humidity_trajectory": humidity_trajectory,
             "total_energy_cost_dollars": self.energy_costs_controls(ventilation_controls, hvac_controls),
             "energy_cost_dollars_pid": self.energy_costs_hvac_pid(current_temp_c)
         }

@@ -137,7 +137,10 @@ class ControllerConfig(BaseModel):
     step_size_hours: float = Field(default=0.25, ge=0.1, le=2.0, description="Time step size")
     optimization_method: str = Field(default="SLSQP", description="Optimization method")
     max_iterations: int = Field(default=500, ge=10, le=2000, description="Maximum optimization iterations")
-    
+    co2_m3_per_hr_per_occupant: float = Field(default=0.02, ge=0.0, description="m^3 of CO2 generated per occupant per hour")
+    base_load_heat_w_per_occupant: float = Field(default=100, description="Amount of heat in w each occupant adds to the building")
+    moisture_generated_per_occupant: float = Field(default=40, description="g/hr of water added to the air per occupant")
+
     @field_validator('optimization_method')
     @classmethod
     def validate_optimization_method(cls, v):

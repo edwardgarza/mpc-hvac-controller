@@ -88,7 +88,7 @@ def run_hpwh_example():
         comfort_weight=30,
         step_size_hours=0.5,
         optimization_method="SLSQP",
-        max_iterations=500,
+        max_iterations=100,
         co2_m3_per_hr_per_occupant=0,
         base_load_heat_w_per_occupant=0 
     )
@@ -120,7 +120,7 @@ def run_hpwh_example():
     start_time = dateutil.parser.isoparse("2024-01-15T20:00:00Z")
 
     ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
-        current_co2_ppm, current_temp_c, weather_series, start_time)
+        current_co2_ppm, current_temp_c, 0.3, weather_series, start_time)
     outputs = controller.get_structured_controls_next_step()
     print("Total cost to cool $", outputs["estimated_cost"])
     controller.generate_plot()    

@@ -155,7 +155,7 @@ def run_hvac_example():
         current_time = start_time + datetime.timedelta(hours = step * controller.step_size_hours)
         # Get control actions for next step using TimeSeries
         ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
-            current_co2_ppm, current_temp_c, weather_series, current_time
+            current_co2_ppm, current_temp_c, 0, weather_series, current_time
         )
         # Debug: Print detailed cost breakdown
         if step % 4 == 0:

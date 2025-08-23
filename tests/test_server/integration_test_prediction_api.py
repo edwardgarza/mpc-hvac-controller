@@ -26,7 +26,8 @@ def create_sample_weather_data(start_time: datetime) -> List:
             "solar_altitude_rad": 0.5,
             "solar_azimuth_rad": 0.0,
             "solar_intensity_w": 800.0,
-            "ground_temperature": 12.0
+            "ground_temperature": 12.0,
+            "relative_humidity": 0.5,
         })
     return weather_data
 
@@ -40,6 +41,7 @@ def test_plot_prediction_endpoint():
     predict_request_data = {
         "current_co2_ppm": 800.0,
         "current_temp_c": 22.0,
+        "current_humidity": 22.0,
         "current_time_hours": 0.0,
         "weather_time_series": weather_data,
         "current_time": start_time_str

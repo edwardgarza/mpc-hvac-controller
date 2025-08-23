@@ -24,12 +24,17 @@ class SolarIrradiation(ArrayConversion):
 
 class WeatherConditions(ArrayConversion):
 
-    def __init__(self, irradiation: SolarIrradiation, wind_speed: float, outdoor_temperature: float,
-                 ground_temperature: float):
+    def __init__(self, 
+                irradiation: SolarIrradiation, 
+                wind_speed: float, 
+                outdoor_temperature: float,
+                ground_temperature: float, 
+                relative_humidity: float = 0):
         self.irradiation = irradiation
         self.wind_speed = wind_speed
         self.outdoor_temperature = outdoor_temperature
         self.ground_temperature = ground_temperature
+        self.relative_humidity = relative_humidity
 
     @classmethod
     def from_array(cls, arr):
@@ -38,7 +43,7 @@ class WeatherConditions(ArrayConversion):
         return WeatherConditions(SolarIrradiation(*solar_params), *remaining)
 
     def to_array(self):
-        return self.irradiation.to_array() + [self.wind_speed, self.outdoor_temperature, self.ground_temperature]
+        return self.irradiation.to_array() + [self.wind_speed, self.outdoor_temperature, self.ground_temperature, self.relative_humidity]
 
     def sol_temp(self, absorptivity: float, orientation: Orientation) -> float:
         # sol_temp = self.outdoor_temperature + absorptivity * self.projected_intensity(orientation) / \

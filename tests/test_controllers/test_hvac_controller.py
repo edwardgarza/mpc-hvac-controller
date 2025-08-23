@@ -120,7 +120,7 @@ class TestHVACController(unittest.TestCase):
     def test_get_control_info_no_exception(self):
         start_time = dateutil.parser.isoparse("2024-01-15T09:30:00Z")
 
-        control_info = self.default_controller.get_control_info(400, 21, self.create_weather_timeseries(), start_time)
+        control_info = self.default_controller.get_control_info(400, 21, 0, self.create_weather_timeseries(), start_time)
         print(control_info)
         self.assertGreater(control_info['total_energy_cost_dollars'], 0)
 

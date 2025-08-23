@@ -73,7 +73,8 @@ def create_weather_timeseries(forecast_hours=48):
             irradiation=solar,
             wind_speed=5.0,
             outdoor_temperature=outdoor_temp,
-            ground_temperature=17.0
+            ground_temperature=17.0,
+            relative_humidity=0.3,
         )
         
         weather_conditions.append(weather)
@@ -126,7 +127,7 @@ def run_periodically_occupied_example():
     start_time = dateutil.parser.isoparse("2024-01-15T09:30:00Z")
 
     ventilation_controls, hvac_controls, total_cost = controller.optimize_controls(
-        current_co2_ppm, current_temp_c, weather_series, start_time)
+        current_co2_ppm, current_temp_c, 0.5, weather_series, start_time)
     outputs = controller.get_structured_controls_next_step()
     print("Total cost to heat $", outputs["estimated_cost"])
     controller.generate_plot()    
