@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 from typing import Tuple
-
+import casadi as ca
 
 class ThermalDeviceModel(ABC):
 
@@ -47,19 +47,20 @@ class HeatPumpThermalDeviceModel(ThermalDeviceModel):
     def power_produced(self, input_power: float, indoor_temperature: float, outdoor_temperature: float) -> float:
         # 6.09 * - 0.09delta_t from research paper source. self.hspf/9.0 is the correction factor for
         # more/less efficient heat pumps
-        if input_power is None or input_power == 0:
+        if input_power is None:
             return 0
         heating = input_power > 0
         cop = self.cop(heating, indoor_temperature, outdoor_temperature)
-        if heating:
-            # for heating, output is cop * input
-            return input_power * cop
-        else:
-            # approximate cooling as cop - 1
-            return input_power * (cop - 1)
+        output = ca.if_else(
+            heating,
+            input_power * cop, # If heating is true
+            input_power * (cop - 1) # If heating is false
+        )
+        return output
+
     
     def power_consumed(self, output_power: float, indoor_temperature: float, outdoor_temperature: float) -> float:
-        if output_power is None or output_power == 0:
+        if output_power is None:
             return 0
         heating = output_power > 0
         cop = self.cop(heating, indoor_temperature, outdoor_temperature)
@@ -71,11 +72,12 @@ class HeatPumpThermalDeviceModel(ThermalDeviceModel):
             return abs(output_power) / (cop - 1)
 
     def cop(self, heating: bool, indoor_temperature: float, outdoor_temperature: float) -> float:
-        if heating:
-            delta_t = (indoor_temperature + self.indoor_offset) - (outdoor_temperature - self.outdoor_offset)
-        else:
-            delta_t = (outdoor_temperature + self.outdoor_offset) - (indoor_temperature - self.indoor_offset)
-        return self.hspf / 9.0 * (6.09 - 0.09 * max(0.0, delta_t))
+        delta_t = ca.if_else(
+            heating,
+            (indoor_temperature + self.indoor_offset) - (outdoor_temperature - self.outdoor_offset),
+            (outdoor_temperature + self.outdoor_offset) - (indoor_temperature - self.indoor_offset)
+        )
+        return self.hspf / 9.0 * (6.09 - 0.09 * ca.fmax(0.0, delta_t))
 
 
     @property
