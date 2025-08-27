@@ -421,7 +421,7 @@ async def get_prediction(request: PredictionRequest):
         # Run optimization in a thread pool to avoid blocking
         print("About to run optimization")
             # Run the optimization in a separate thread
-
+        start_time = datetime.now()
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor() as executor:
             # Run the optimization in a separate thread
@@ -435,7 +435,8 @@ async def get_prediction(request: PredictionRequest):
                 current_time
             )
         
-        print("Finished running optimization")
+        end_time = datetime.now()
+        print(f"Finished running optimization, took {(end_time-start_time).total_seconds()} seconds")
         # Get next prediction array
         next_prediction = controller.get_next_prediction()
         
@@ -452,8 +453,6 @@ async def get_prediction(request: PredictionRequest):
                 request.current_humidity,
                 controller.get_optimized_ventilation_controls(), 
                 controller.get_optimized_hvac_controls(),
-                weather_series,
-                0
             )
         
         # Create time horizon
