@@ -127,7 +127,8 @@ class TestHVACController(unittest.TestCase):
         # the total energy cost should be slightly higher than the hvac usage, which is $0.15/kwh (and the step size is 0.5 hours)
         hvac_energy_used = 0
         for hvac_input in control_info['hvac_controls']:
-            hvac_energy_used += sum([abs(x) for x in hvac_input])
+            # this is not 100% correct but pretty close
+            hvac_energy_used += sum([abs(self.building_model.heating_model.power_consumed(x, 20, 15)) for x in hvac_input])
         self.assertAlmostEqual(control_info['total_energy_cost_dollars'], hvac_energy_used * 0.15 / 1000 * 1.5, 3)
         print(control_info["hvac_controls"])
         print("total energy used:", hvac_energy_used)

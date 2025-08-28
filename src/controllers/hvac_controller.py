@@ -140,7 +140,7 @@ class HvacController:
         for i in range(self.n_steps):
             # Extract control inputs for this time step
             ventilation_inputs = ventilation_controls[:, i]
-            hvac_inputs = hvac_controls[:, i]
+            hvac_outputs = hvac_controls[:, i]
             
             
             # use linear dynamics for better convergence
@@ -185,13 +185,12 @@ class HvacController:
                                                 self.room_dynamics.volume_m3, 
                                                 natural_vent.airflow_m3_per_hour())
                 
-
             # Use building model for temperature change (includes HVAC and thermal transfer)
             temp_change_per_s = self.building_model.temperature_change_per_s(
                 current_temp, 
                 weather, 
-                hvac_inputs[0], 
-                ventilation_heat_load_kw * 1000 + self.base_load_heat_w_per_occupant * self.occupancy_array[i]
+                0, 
+                ventilation_heat_load_kw * 1000 + self.base_load_heat_w_per_occupant * self.occupancy_array[i] + hvac_outputs[0]
             )
 
             temp_change = temp_change_per_s * self.step_size_seconds
@@ -323,15 +322,14 @@ class HvacController:
 
             # Energy cost
             ventilation_inputs = ventilation_sequences[:, i]
-            hvac_input = hvac_sequences[0][i]
-            
+            hvac_output = hvac_sequences[0][i]
+            hvac_input = self.building_model.heating_model.power_consumed(hvac_output, temp_trajectory[i + 1], self.weather_array[i].outdoor_temperature)
             energy_cost = self.energy_cost(
                 ventilation_inputs, 
                 hvac_input
             ) * self.step_size_seconds * self.energy_weight * self.energy_cost_array[i]
             
-            # cost_of_step = co2_cost + comfort_cost + energy_cost + accumulated_temp_error + accumulated_co2_error
-            cost_of_step = co2_cost + comfort_cost + energy_cost
+            cost_of_step = co2_cost + comfort_cost + energy_cost + accumulated_temp_error + accumulated_co2_error
             total_cost += cost_of_step
 
         # double count last step's cost
@@ -650,11 +648,11 @@ class HvacController:
             ventilation_inputs = ventilation_controls[:,i]
 
             # TODO: support multiple hvac units
-            hvac_inputs = hvac_controls[:,i]
-
+            hvac_outputs = hvac_controls[:,i]
+            hvac_input = self.building_model.heating_model.power_consumed(hvac_outputs[0], self.temp_trajectory[i], self.weather_array[i].outdoor_temperature)
             energy_cost = self.energy_cost(
                 ventilation_inputs, 
-                hvac_inputs[0]) * self.step_size_seconds * self.energy_cost_array[i]
+                hvac_input) * self.step_size_seconds * self.energy_cost_array[i]
             total_energy_cost += energy_cost
         return total_energy_cost
 
