@@ -62,7 +62,7 @@ At each time step, the temperature evolves according to
 
 $$ T_{i + 1} = T_i + \frac{\alpha + \beta \delta_T + Q \delta_T c_p}{c_b}   $$
 
-Where $alpha$ is the baseload heat generated inside the house (includes occupants), $\beta$ is the net effective r value of the building times the area, $\delta_T$ is the difference in temperature between inside and outside, Q is the airflow, $c_p$ is the heat capacity of air, and $c_b$ is the heat capacity of the building.
+Where $\alpha$ is the baseload heat generated inside the house (includes occupants), $\beta$ is the net effective r value of the building times the area, $\delta_T$ is the difference in temperature between inside and outside, Q is the airflow, $c_p$ is the heat capacity of air, and $c_b$ is the heat capacity of the building.
 
 Similarly, CO2 evolves with 
 
@@ -152,7 +152,7 @@ where q is the power flow (J/s), k is the conductivity, A is the area, and s is 
 
 <h4>Radiation</h4>
 
-Radiation will be incorporated by using the [sol-air temperature](https://en.wikipedia.org/wiki/Sol-air_temperature) to replace the outdoor temperature **NOT IMPLEMENTED**
+**NOT IMPLEMENTED**
 
 <h4>Convection</h4>
 
@@ -163,11 +163,7 @@ Initially convection will be ignored largely because I don't know how to model t
 3. Outdoor temperature
 4. Wind speed
 
-I am hoping this will be relatively small and constant for areas and can be compensated for by the Natural Ventillation class.
-
-<h3>Building Attributes</h3>
-
-Buildings have windows, walls, roofs, and floors explicitly modeled. They will be modeled as simply as possible with as few objects and may not exactly map to reality. Once again, the hope here is that the model will be able to compensate with different parameters.
+I am hoping this will be relatively small and constant.
 
 <h3>Heating/Cooling Modeling</h3>
 Both electric resistance and combustion fuel have efficiencies independent of external temperature. However, heat pumps and air conditioner units have variable efficiencies.
