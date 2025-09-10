@@ -17,9 +17,10 @@ All units are in SI (metric):
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 import numpy as np
+from functools import cached_property
 
 from src.utils.orientation import Orientation
-from src.models.weather import WeatherConditions
+from src.models.weather import WeatherConditions, SolarIrradiation
 from src.models.thermal_transfer import ThermalTransfer
 from src.models.thermal_device import ThermalDeviceModel, ElectricResistanceThermalDeviceModel
 
@@ -74,6 +75,7 @@ class WallModel(ThermalTransfer):
         self.orientation = orientation
         self.exterior_insulation_r = exterior_insulation_r
 
+    @cached_property
     def _rvalue(self) -> float:
         """
         Calculate effective R-value of the wall assembly.
@@ -108,7 +110,7 @@ class WallModel(ThermalTransfer):
         """
         # Calculate solar temperature with 0.5 absorptivity (typical for walls)
         solar_temp = weather_conditions.sol_temp(0.5, self.orientation)
-        return (solar_temp - inside_temperature) * self.area_sq_m / self._rvalue()
+        return (solar_temp - inside_temperature) * self.area_sq_m / self._rvalue
 
 
 class RoofModel(ThermalTransfer):
@@ -210,7 +212,7 @@ class PierAndBeam(WallModel, FloorModel):
         Returns:
             Heat flow in watts (positive = heat flowing into building)
         """
-        return (weather_conditions.outdoor_temperature - inside_temperature) * self.area_sq_m / self._rvalue()
+        return (weather_conditions.outdoor_temperature - inside_temperature) * self.area_sq_m / self._rvalue
 
 
 class WindowModel(ThermalTransfer):
@@ -285,6 +287,11 @@ class BuildingModel(ThermalTransfer):
         self.heat_capacity = heat_capacity
         self.baseload_interior_heating = baseload_interior_heating
 
+        # for debugging purposes now to compare with fit params - later inject a beta value so the thermal transfer models can be bypassed
+        beta_calc_air = sum([x.powerflow(0, WeatherConditions(SolarIrradiation(0, 0, 0), 0, 1, 0, 0)) for x in thermal_models])
+        beta_calc_ground = sum([x.powerflow(0, WeatherConditions(SolarIrradiation(0, 0, 0), 0, 0, 1, 0)) for x in thermal_models])
+        print("Calculated beta in W/°C from building model to air: ", beta_calc_air, "to ground: ", beta_calc_ground)
+    
     def powerflow(self, *args: Any) -> float:
         """
         Calculate total heat flow into the building.
