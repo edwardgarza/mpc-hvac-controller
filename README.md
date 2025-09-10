@@ -18,13 +18,19 @@ While this was designed with buildings in mind where ventilation is also importa
 
 At a high level, a traditional thermostat works as a [pid](https://en.wikipedia.org/wiki/PID_controller) controller by having a set point and changing a state variable (heat/cool) to reach that set point at each point in time. The set point will change at times with a set schedule, based on the state of people in the building, or can go to vacation mode. It doesn't do any planning and is reactive to external variables.
 
-The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy use, cost while maintaining comfort. This also includes ventillation for controlling CO2 levels and/or capturing free cooling or heating.
+The goal of this is to use a [model predictive controller](https://en.wikipedia.org/wiki/Model_predictive_control) to define a better trajectory than a set schedule to further minimize energy cost while maintaining comfort. This also includes ventillation for controlling CO2 levels and/or capturing free cooling or heating.
 
 The controller optimizes over a prediction horizon (typically 24 hours) to find the best trajectory that balances energy efficiency, comfort, and air quality. Once it implements the first step, it will then recalculate the entire next 24 hour horizon. This is the control loop, and 15-30 minutes between predictions is probably sufficient. 
 
+The optimization objective looks like this
+
+$$ \sum_i w_i e + \sum_i (t_i - t_{set}) ^ 2 + \sum_i (co_2 - co_{2set}) ^ 2 + \sum_i \int t_{error} + \sum_i \int co_{2error}$$
+
+The first term is the energy use times the energy price, the second and third terms are the cost for violating the temperature and co2 set points, and the fourth and fifth terms are integrals on the temperature and co2 errors to ensure that at steady state the errors trend towards 0. These integral terms both reset after a point has 0 error, much like the integral term on a pid controller. Co2 and temperature costs are set to 0 when the space is not occupied. Temperature and co2 levels use penalties rather than constraints to allow not fully controllable systems to operate (i.e. heat only or undersized equipment), allow for trading comfort for cost, and ensure a trajectory is able to be found for a variety of desired schedules.
+
 During each time step, the ventilation rates could be controlled by using a PWM signal to precisely control the fan speeds or by simply turning the ventilation on/off. 
 
-For HVAC, the controls are a little less clear and I think the best option would be to set the thermostat to the specified mode (i.e. heat, cool, or off) and change the set point to the expected indoor temperate at that time step. 
+For heating and cooling, the controls are a little less clear and I think the best option would be to set the thermostat to the specified mode (i.e. heat, cool, or off) and change the set point to the expected indoor temperate at that time step. 
 
 All units are in SI. 
 
@@ -52,13 +58,24 @@ All units are in SI.
 2. Power is not considered a factor
 3. Different sources of energy are treated the same (locally generated solar and grid usage are fungible. This is implicitly assumed in (1))
 
-<h2>Installtion</h2>
+At each time step, the temperature evolves according to
+
+$$ T_{i + 1} = T_i + \frac{\alpha + \beta \delta_T + Q \delta_T c_p}{c_b}   $$
+
+Where $\alpha$ is the baseload heat generated inside the house (includes occupants), $\beta$ is the net effective r value of the building times the area, $\delta_T$ is the difference in temperature between inside and outside, Q is the airflow, $c_p$ is the heat capacity of air, and $c_b$ is the heat capacity of the building.
+
+Similarly, CO2 evolves with 
+
+$$C_{i + 1} = C_i + \frac{\sigma o + Q (C_i - C_o)}{V} $$
+
+Where $\sigma$ is the co2 generation rate per occupant, o is the number of occupants, Q is the airflow, $C_o$ is the outdoor co2 level, and V is the room volume
+<h2>Installation</h2>
 
 <h3>Add-On in Home Assistant</h3>
 This can be installed as an add-on using home assistant. It is registered to port 8000 and can be installed by simply using this repo as the add-on source. Then the webpage can be accessed via http://homeassistantip:8000.
 <br><br>
 
-**Please note**: optimizaion is currently quite slow. 5-10 minutes is quite possible with 3 controllable variables and 48 steps (0.5 hour step size and 24 hour horizon). 
+**Please note**: optimizaion is currently quite slow. 1-2 minutes is quite possible with 3 controllable variables and 48 steps (0.5 hour step size and 24 hour horizon). 
 
 <h3>Sending Requests to the Add-On</h3>
 There are two changes needed to actually send data to the add-on. A REST command has to be registered in configuration.yaml like
@@ -135,7 +152,7 @@ where q is the power flow (J/s), k is the conductivity, A is the area, and s is 
 
 <h4>Radiation</h4>
 
-Radiation will be incorporated by using the [sol-air temperature](https://en.wikipedia.org/wiki/Sol-air_temperature) to replace the outdoor temperature **NOT IMPLEMENTED**
+**NOT IMPLEMENTED**
 
 <h4>Convection</h4>
 
@@ -146,11 +163,7 @@ Initially convection will be ignored largely because I don't know how to model t
 3. Outdoor temperature
 4. Wind speed
 
-I am hoping this will be relatively small and constant for areas and can be compensated for by the Natural Ventillation class.
-
-<h3>Building Attributes</h3>
-
-Buildings have windows, walls, roofs, and floors explicitly modeled. They will be modeled as simply as possible with as few objects and may not exactly map to reality. Once again, the hope here is that the model will be able to compensate with different parameters.
+I am hoping this will be relatively small and constant.
 
 <h3>Heating/Cooling Modeling</h3>
 Both electric resistance and combustion fuel have efficiencies independent of external temperature. However, heat pumps and air conditioner units have variable efficiencies.
